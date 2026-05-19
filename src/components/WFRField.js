@@ -32,19 +32,19 @@ const mono = "ui-monospace,'Courier New',monospace";
 ══════════════════════════════════════════════════════════════════════════════ */
 const PAS = [
   { id:"ssu",    tag:"SCENE",     color:C.warn,   label:"Scene Size-Up",
-    items:["Scene safe?","MOI / NOI identified","# patients","PPE on","Resources assessed"] },
+    items:["Scene safe?","Mechanism of Injury (MOI) / Nature of Illness (NOI)","# of patients","Personal Protective Equipment (PPE) on","Resources assessed"] },
   { id:"resp",   tag:"PRIMARY",   color:C.danger, label:"Responsiveness",
-    items:["Tap & shout response","AVPU level determined","Airway open?","Breathing present?"] },
+    items:["Tap & shout — get a response","AVPU level (Alert / Voice / Pain / Unresponsive)","Airway open?","Breathing present?"] },
   { id:"abc",    tag:"PRIMARY",   color:C.danger, label:"ABCs + Bleeding",
-    items:["Severe bleeding controlled","Pulses present","Skin color / temp / moisture","Shock signs assessed"] },
+    items:["Severe bleeding controlled","Pulses present","Skin Color, Temperature & Moisture","Shock signs assessed"] },
   { id:"sample", tag:"SECONDARY", color:C.blue,   label:"SAMPLE History",
     items:["Signs & symptoms","Allergies","Medications","Pertinent history","Last food/drink","Events leading up"] },
   { id:"vitals", tag:"SECONDARY", color:C.blue,   label:"Vital Signs",
-    items:["HR rate & quality","RR rate & quality","Blood pressure / perfusion","SCTM","LOR (A+O×?)"] },
+    items:["Heart Rate (HR) — rate & quality","Respiratory Rate (RR) — rate & quality","Blood Pressure / Perfusion","Skin Color, Temperature & Moisture (SCTM)","Level of Responsiveness — alert and oriented?"] },
   { id:"exam",   tag:"SECONDARY", color:C.blue,   label:"Head-to-Toe Exam",
-    items:["Head / skull / face","Neck / c-spine","Chest / breath sounds","Abdomen / pelvis","Extremities DCAP-BTLS","Posterior"] },
+    items:["Head / skull / face","Neck / cervical spine","Chest / breath sounds","Abdomen / pelvis","Extremities — DCAP-BTLS (Deformity, Contusions, Abrasions, Punctures / Burns, Tenderness, Lacerations, Swelling)","Posterior / back"] },
   { id:"evac",   tag:"EVAC",      color:C.purple, label:"Evac Decision",
-    items:["Stable or unstable?","Walk-out capable?","Distance to care","Weather window","Emergency or planned?"] },
+    items:["Stable or unstable?","Walk-out capable?","Distance to definitive care","Weather window","Emergency or planned evacuation?"] },
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -53,12 +53,12 @@ const PAS = [
 const PAS_FIELDS = {
   ssu: [
     { key:"numPatients", label:"# Patients",      type:"number",   placeholder:"1" },
-    { key:"moi",         label:"MOI / NOI",        type:"text",     placeholder:"mechanism or nature of injury" },
+    { key:"moi",         label:"Mechanism of Injury / Nature of Illness (MOI/NOI)", type:"text", placeholder:"e.g. fall from height, twisted ankle, bee sting" },
     { key:"sceneSafe",   label:"Scene Safety",     type:"text",     placeholder:"hazards present, control measures" },
     { key:"resources",   label:"Resources",        type:"text",     placeholder:"kit, litter, comms, other responders" },
   ],
   resp: [
-    { key:"avpu",      label:"AVPU Level",   type:"select",   options:["—","Alert","Verbal","Pain","Unresponsive"] },
+    { key:"avpu",      label:"AVPU (Alert / Voice / Pain / Unresponsive)", type:"select", options:["—","Alert","Verbal — responds to voice","Pain — responds to pain only","Unresponsive"] },
     { key:"airway",    label:"Airway",        type:"select",   options:["—","Open","Compromised","Obstructed"] },
     { key:"breathing", label:"Breathing",     type:"select",   options:["—","Present — normal","Present — labored","Absent"] },
     { key:"notes",     label:"Notes",         type:"text",     placeholder:"additional findings" },
@@ -66,13 +66,13 @@ const PAS_FIELDS = {
   abc: [
     { key:"bleeding",  label:"Bleeding Controlled",         type:"select", options:["—","Yes","No","N/A"] },
     { key:"pulse",     label:"Pulse",                       type:"select", options:["—","Strong","Weak","Thready","Absent"] },
-    { key:"sctm",      label:"Skin (Color / Temp / Moisture)", type:"text", placeholder:"pink / warm / dry" },
+    { key:"sctm",      label:"Skin — Color, Temperature & Moisture", type:"text", placeholder:"e.g. pink / warm / dry" },
     { key:"shock",     label:"Shock Signs",                 type:"select", options:["—","None","Present"] },
     { key:"notes",     label:"Notes",                       type:"text",   placeholder:"" },
   ],
   sample: [
     { key:"signs",   label:"Signs & Symptoms",  type:"textarea", placeholder:"chief complaint and objective findings" },
-    { key:"allergy", label:"Allergies",          type:"text",     placeholder:"NKDA or list allergens" },
+    { key:"allergy", label:"Allergies",          type:"text",     placeholder:"No known drug allergies (NKDA), or list them" },
     { key:"meds",    label:"Medications",        type:"text",     placeholder:"current medications and doses" },
     { key:"history", label:"Pertinent History",  type:"textarea", placeholder:"relevant medical history" },
     { key:"last",    label:"Last Food / Drink",  type:"text",     placeholder:"time and what" },
@@ -80,12 +80,12 @@ const PAS_FIELDS = {
   ],
   vitals: [],
   exam: [
-    { key:"head",        label:"Head / Skull / Face",   type:"text",     placeholder:"DCAP-BTLS, pupils PEARL?" },
-    { key:"neck",        label:"Neck / C-spine",        type:"text",     placeholder:"midline pain, JVD, trachea" },
+    { key:"head",        label:"Head / Skull / Face",   type:"text",     placeholder:"Deformity, Contusions, Abrasions, Punctures (DCAP) — pupils equal & reactive to light?" },
+    { key:"neck",        label:"Neck / Cervical Spine", type:"text",     placeholder:"midline pain, jugular vein distension (JVD), trachea midline?" },
     { key:"chest",       label:"Chest / Breath Sounds", type:"text",     placeholder:"equal, clear; paradoxical?" },
     { key:"abdomen",     label:"Abdomen / Pelvis",      type:"text",     placeholder:"tenderness, rigidity, instability" },
-    { key:"extremities", label:"Extremities",           type:"textarea", placeholder:"each limb: CSM, DCAP-BTLS" },
-    { key:"posterior",   label:"Posterior",             type:"text",     placeholder:"spine TTP, contusions, back" },
+    { key:"extremities", label:"Extremities",           type:"textarea", placeholder:"each limb: Circulation, Sensation & Motion (CSM) — deformity, wounds, swelling" },
+    { key:"posterior",   label:"Posterior / Back",      type:"text",     placeholder:"spine tenderness to palpation, contusions, flanks" },
     { key:"notes",       label:"Additional Findings",   type:"textarea", placeholder:"" },
   ],
   evac: [
@@ -102,11 +102,11 @@ const PAS_FIELDS = {
    VITAL FIELDS
 ══════════════════════════════════════════════════════════════════════════════ */
 const VITAL_FIELDS = [
-  { key:"lor",  label:"LOR",  placeholder:"A+O×4" },
-  { key:"hr",   label:"HR",   placeholder:"bpm" },
-  { key:"rr",   label:"RR",   placeholder:"brpm" },
-  { key:"bp",   label:"BP",   placeholder:"sys/dia" },
-  { key:"sctm", label:"SCTM", placeholder:"P/W/D" },
+  { key:"lor",  label:"LOR",  fullLabel:"Level of Responsiveness",      placeholder:"A+Ox4" },
+  { key:"hr",   label:"HR",   fullLabel:"Heart Rate",                    placeholder:"bpm" },
+  { key:"rr",   label:"RR",   fullLabel:"Resp. Rate",                    placeholder:"brpm" },
+  { key:"bp",   label:"BP",   fullLabel:"Blood Pressure",                placeholder:"sys/dia" },
+  { key:"sctm", label:"SCTM", fullLabel:"Skin (Color / Temp / Moisture)",placeholder:"P/W/D" },
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -114,26 +114,26 @@ const VITAL_FIELDS = [
 ══════════════════════════════════════════════════════════════════════════════ */
 const PROTOCOLS = [
   { id:"shock", flag:"URGENT", title:"Shock / Hypoperfusion",
-    signs:["Pale, cool, clammy skin","HR > 100 or weak/thready","RR > 24 or labored","AMS / restless / anxious","CRT > 2 sec"],
-    tx:["Control bleeding — direct pressure","Supine or legs elevated (no spine concern)","Insulate from ground + overhead","Keep patient still & calm","NPO","Evacuate immediately"] },
+    signs:["Pale, cool, clammy skin","Heart Rate > 100 or weak/thready pulse","Respiratory Rate > 24 or labored","Altered Mental Status (AMS) — restless or anxious","Capillary Refill Time (CRT) > 2 seconds"],
+    tx:["Control bleeding — direct pressure","Supine or legs elevated (no spine concern)","Insulate from ground + overhead","Keep patient still & calm","Nothing by mouth","Evacuate immediately"] },
   { id:"spine", flag:"PROTOCOL", title:"Spinal Clearance",
-    signs:["Reliable patient? (no AMS, no intox, no distracting injury)","Mechanism with axial load?","Midline neck/back pain or tenderness?","Neuro deficit (numbness/tingling/weakness)?"],
-    tx:["ALL 4 must be NO to clear spine","Any YES → full immobilization","Immobilize in position found","Pad voids; secure head last","Evacuate — do not walk"] },
+    signs:["Reliable patient? (no altered mental status, no intoxication, no distracting injury)","Mechanism with axial load (vertical force on spine)?","Midline neck/back pain or tenderness?","Neurological deficit — numbness, tingling, or weakness?"],
+    tx:["All 4 must be NO to clear spine","Any YES → full immobilization","Immobilize in position found","Pad voids; secure head last","Evacuate — do not walk"] },
   { id:"anaph", flag:"URGENT", title:"Anaphylaxis",
-    signs:["Hives / flushing / itching","Throat tightness / stridor","Wheezing / SOB","Hypotension / weak pulse","Vomiting / cramping"],
-    tx:["Epi auto-injector IM mid-outer thigh","Repeat epi q5–15 min if no improvement","Diphenhydramine 25–50 mg if available","Supine if hypotensive / upright if SOB","Monitor airway closely","Evacuate immediately after epi"] },
-  { id:"head", flag:"MONITOR", title:"Head Injury / TBI",
-    signs:["LOC at any point?","Amnesia before or after?","Persistent headache","Repeated vomiting","Pupils unequal / sluggish","AMS / combative / personality change"],
-    tx:["Any LOC or AMS → spine precautions","Serial neuro checks q15 min","Any decline → immediate evac","NPO if AMS","Keep warm; monitor airway","Do NOT give NSAIDs or opioids"] },
+    signs:["Hives / flushing / itching","Throat tightness / stridor (high-pitched breathing noise)","Wheezing / shortness of breath","Low blood pressure / weak pulse","Vomiting / cramping"],
+    tx:["Epinephrine auto-injector into mid-outer thigh muscle","Repeat epinephrine every 5–15 min if no improvement","Diphenhydramine 25–50 mg if available","Supine if low blood pressure / upright if difficulty breathing","Monitor airway closely","Evacuate immediately after epinephrine"] },
+  { id:"head", flag:"MONITOR", title:"Head Injury / Traumatic Brain Injury (TBI)",
+    signs:["Loss of consciousness (LOC) at any point?","Amnesia before or after the event?","Persistent headache","Repeated vomiting","Pupils unequal or sluggish","Altered mental status — confusion, combative, or personality change"],
+    tx:["Any loss of consciousness or altered mental status → spine precautions","Serial neuro checks every 15 min","Any decline → immediate evacuation","Nothing by mouth if altered mental status","Keep warm; monitor airway","Do NOT give NSAIDs or opioids"] },
   { id:"hypo", flag:"PROTOCOL", title:"Hypothermia",
     signs:["Mild: shivering, clumsy, poor judgment","Moderate: stops shivering, rigid, confused","Severe: no shivering, rigid, faint pulse"],
-    tx:["Handle gently — no rough movement (VFib risk)","Remove wet clothing; cut if needed","Insulate: pad + bag + vapor barrier","Heat trunk only — no extremity heat packs","Warm sweet fluids if alert + can swallow","Severe → horizontal evac"] },
+    tx:["Handle gently — no rough movement (ventricular fibrillation risk)","Remove wet clothing; cut if needed","Insulate: pad + bag + vapor barrier","Heat trunk only — no heat packs on extremities","Warm sweet fluids if alert and can swallow","Severe → horizontal evacuation"] },
   { id:"wound", flag:"PROTOCOL", title:"Wound Management",
-    signs:["Mechanism: crush / puncture / lac / avulsion","Contamination level","Time since injury","Distal NV intact?"],
-    tx:["Irrigate: 60 mL syringe, 18g tip, high pressure, clean water","60–100 mL per cm wound length","Debride visible debris gently","Pack deep wounds; do NOT close contaminated","Dress & splint if near joint","Evac if: joint involved, infection signs, NV deficit"] },
+    signs:["Mechanism: crush / puncture / laceration / avulsion","Contamination level","Time since injury","Distal neurovascular status intact?"],
+    tx:["Irrigate: 60 mL syringe, 18-gauge tip, high pressure, clean water","60–100 mL per cm of wound length","Debride visible debris gently","Pack deep wounds; do NOT close contaminated wounds","Dress & splint if near joint","Evacuate if: joint involved, infection signs, neurovascular deficit"] },
   { id:"lightning", flag:"URGENT", title:"Lightning Strike",
-    signs:["Scene: active storm? Scatter group first","Entry/exit burns possible","Cardiac arrest common — CPR indicated","Keraunoparalysis (temp paralysis)","AMS, deafness, eye damage"],
-    tx:["Safe scene — move from strike zone","Triage REVERSE: treat apparent deaths first","CPR if pulseless — high success rate","Spine precautions","Monitor closely 24 h","All struck patients evacuate"] },
+    signs:["Scene: active storm? Scatter group first","Entry/exit burns possible","Cardiac arrest common — CPR indicated","Keraunoparalysis (temporary paralysis)","Altered mental status, hearing loss, eye damage"],
+    tx:["Safe scene — move from strike zone","Triage REVERSE: treat apparent deaths first","CPR if pulseless — high success rate","Spine precautions","Monitor closely 24 hours","All struck patients must evacuate"] },
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -142,7 +142,7 @@ const PROTOCOLS = [
 const AILMENTS = [
   { id:"snakebite", cat:"BITES & STINGS", severity:"high", evac:true, img:"snake",
     title:"Snakebite",
-    signs:["1–2 fang puncture marks","Local pain, swelling, bruising within minutes","Nausea, vomiting, metallic taste","Numbness of mouth/face","Severe: hypotension, neuro deficits, coagulopathy"],
+    signs:["1–2 fang puncture marks","Local pain, swelling, bruising within minutes","Nausea, vomiting, metallic taste","Numbness of mouth/face","Severe: low blood pressure, neurological deficits, coagulopathy (blood not clotting)"],
     tx:["Keep patient calm and still — movement spreads venom","Immobilize bitten limb at or below heart level","Remove rings/watches/tight clothing near bite","Mark swelling border + time every 15 min","Do NOT cut, suck, tourniquet, or apply ice","Evacuate immediately — antivenom is definitive treatment"],
     avoid:"No tourniquet. No electric shock. No incisions. No ice." },
   { id:"spider", cat:"BITES & STINGS", severity:"moderate", evac:true, img:"spider",
@@ -157,7 +157,7 @@ const AILMENTS = [
     avoid:"No Vaseline, nail polish, or heat to encourage tick removal." },
   { id:"bee", cat:"BITES & STINGS", severity:"low", evac:false, img:"bee",
     title:"Bee / Wasp Sting",
-    signs:["Immediate burning pain at sting site","Local swelling, redness, itching","Watch for systemic: throat tightness, SOB, dizziness"],
+    signs:["Immediate burning pain at sting site","Local swelling, redness, itching","Watch for systemic signs: throat tightness, shortness of breath, dizziness"],
     tx:["Scrape stinger out — do not pinch or squeeze","Ice pack to reduce swelling","Diphenhydramine 25–50 mg for local reaction if available","Monitor 30 min for anaphylaxis","If systemic signs: treat as anaphylaxis immediately"],
     avoid:"Do not pinch stinger — injects more venom." },
   { id:"aquatic", cat:"BITES & STINGS", severity:"moderate", evac:false,
@@ -193,32 +193,32 @@ const AILMENTS = [
   { id:"fracture", cat:"FALLS & FRACTURES", severity:"moderate", evac:true,
     title:"Fracture / Suspected Fracture",
     signs:["Significant force mechanism: fall, crush, impact","Point tenderness directly over bone","Deformity, angulation, or shortening","Crepitus (grinding sensation)","Unable to bear weight","Open fracture: bone visible or wound near break site"],
-    tx:["Splint in position found — immobilize joint above and below fracture","Check and document CSM before and after splinting","Pad splint well; secure snugly but not tight","Open fracture: cover with moist sterile dressing, do not push bone back","Femur fracture: significant blood loss risk — treat proactively for shock","Evacuate all fractures"],
-    avoid:"Do not straighten angulated fracture unless distal NV is compromised and evac is delayed." },
+    tx:["Splint in position found — immobilize joint above and below fracture","Check and document Circulation, Sensation & Motion (CSM) before and after splinting","Pad splint well; secure snugly but not tight","Open fracture: cover with moist sterile dressing, do not push bone back","Femur fracture: significant blood loss risk — treat proactively for shock","Evacuate all fractures"],
+    avoid:"Do not straighten angulated fracture unless distal neurovascular status is compromised and evacuation is delayed." },
   { id:"dislocation", cat:"FALLS & FRACTURES", severity:"moderate", evac:true,
     title:"Joint Dislocation",
-    signs:["Significant force or awkward fall mechanism","Visible deformity at joint","Severe pain with muscle spasm","Loss of normal range of motion","Check distal CSM — nerve/vessel compromise is emergency"],
-    tx:["Check distal CSM immediately and document","Shoulder: if trained, attempt reduction with traction-countertraction within 30 min","Patella: gentle extension if trained","All others: splint in position found","Post-reduction: recheck CSM, splint, evacuate","Do not attempt if fracture suspected or over 30 min old"],
+    signs:["Significant force or awkward fall mechanism","Visible deformity at joint","Severe pain with muscle spasm","Loss of normal range of motion","Check distal Circulation, Sensation & Motion (CSM) — nerve/vessel compromise is emergency"],
+    tx:["Check distal CSM (Circulation, Sensation & Motion) immediately and document","Shoulder: if trained, attempt reduction with traction-countertraction within 30 min","Patella: gentle extension if trained","All others: splint in position found","Post-reduction: recheck CSM, splint, evacuate","Do not attempt if fracture suspected or over 30 min old"],
     avoid:"Do not reduce knee, hip, elbow, or ankle dislocations without specific training." },
   { id:"headfall", cat:"FALLS & FRACTURES", severity:"high", evac:true,
     title:"Fall from Height / High-Energy Trauma",
-    signs:["Fall > standing height or high-speed impact","AMS or LOC at any point","Midline spine pain or tenderness","Chest or abdominal tenderness","Multiple injuries common"],
-    tx:["Full spine precautions until cleared","Primary survey first — manage life threats","Assume multi-system injury until proven otherwise","Serial vitals q5 min","Treat proactively for shock","Emergency evacuation"] },
+    signs:["Fall > standing height or high-speed impact","Altered mental status (AMS) or loss of consciousness at any point","Midline spine pain or tenderness","Chest or abdominal tenderness","Multiple injuries common"],
+    tx:["Full spine precautions until cleared","Primary survey first — manage life threats","Assume multi-system injury until proven otherwise","Serial vitals every 5 min","Treat proactively for shock","Emergency evacuation"] },
   { id:"heat_ex", cat:"ENVIRONMENTAL", severity:"moderate", evac:true,
     title:"Heat Exhaustion",
-    signs:["Heavy sweating","Pale, cool, clammy skin","Weakness, dizziness, headache, nausea","HR > 100, RR elevated","Normal mental status — if AMS, treat as heat stroke"],
-    tx:["Move to cool shade immediately","Remove excess clothing","Lay supine, elevate legs","Cool wet cloths to neck, armpits, and groin","Oral rehydration — sips not gulps","Improving in 30 min + normal MS — may monitor carefully","Any AMS — treat as heat stroke immediately"],
+    signs:["Heavy sweating","Pale, cool, clammy skin","Weakness, dizziness, headache, nausea","Heart Rate > 100, Respiratory Rate elevated","Normal mental status — if altered mental status, treat as heat stroke"],
+    tx:["Move to cool shade immediately","Remove excess clothing","Lay supine, elevate legs","Cool wet cloths to neck, armpits, and groin","Oral rehydration — sips not gulps","Improving in 30 min with normal mental status — may monitor carefully","Any altered mental status — treat as heat stroke immediately"],
     avoid:"Any altered mental status = heat stroke. Do not delay cooling." },
   { id:"heat_stroke", cat:"ENVIRONMENTAL", severity:"high", evac:true,
     title:"Heat Stroke",
-    signs:["Hot skin — may be wet or dry","Altered mental status: confusion, combative, or unresponsive","Core temp > 40°C (104°F) if measurable","Rapid HR and RR","Nausea, vomiting, possible seizure"],
-    tx:["COOL FIRST, TRANSPORT SECOND — cooling is definitive treatment","Strip clothing; immerse in cold water or ice packs to neck/axilla/groin","Fan aggressively — evaporation dramatically speeds cooling","Continue active cooling during evacuation","Monitor airway — vomiting risk if AMS","Emergency evacuation — heat stroke is life-threatening"],
-    avoid:"Do not give oral fluids if AMS present — aspiration risk." },
+    signs:["Hot skin — may be wet or dry","Altered mental status: confusion, combative, or unresponsive","Core temp > 40°C (104°F) if measurable","Rapid Heart Rate and Respiratory Rate","Nausea, vomiting, possible seizure"],
+    tx:["COOL FIRST, TRANSPORT SECOND — cooling is definitive treatment","Strip clothing; immerse in cold water or ice packs to neck/armpits/groin","Fan aggressively — evaporation dramatically speeds cooling","Continue active cooling during evacuation","Monitor airway — vomiting risk if altered mental status","Emergency evacuation — heat stroke is life-threatening"],
+    avoid:"Do not give oral fluids if altered mental status present — aspiration risk." },
   { id:"altitude", cat:"ENVIRONMENTAL", severity:"moderate", evac:true,
     title:"Altitude Illness (AMS / HACE / HAPE)",
-    signs:["AMS: headache + nausea/fatigue/dizziness at > 2500 m","HACE: AMS + ataxia (stumbling) and/or severe AMS","HAPE: dry cough progressing to wet cough, SOB at rest, crackles, cyanosis"],
-    tx:["AMS: stop ascent, rest, hydrate, ibuprofen for headache","Do not ascend until symptom-free for 24 h","HACE/HAPE: DESCEND IMMEDIATELY — minimum 300–1000 m","Supplemental O2 if available","Gamow bag if available","Dexamethasone (HACE) or Nifedipine (HAPE) if trained and available","HACE/HAPE: emergency evacuation"],
-    avoid:"Never ascend with AMS symptoms. Descent is the only definitive treatment." },
+    signs:["Acute Mountain Sickness (AMS): headache + nausea/fatigue/dizziness above 2500 m","High Altitude Cerebral Edema (HACE): AMS symptoms + ataxia (stumbling) or severely worsening AMS","High Altitude Pulmonary Edema (HAPE): dry cough progressing to wet cough, shortness of breath at rest, crackles, blue lips"],
+    tx:["Acute Mountain Sickness: stop ascent, rest, hydrate, ibuprofen for headache","Do not ascend until symptom-free for 24 hours","HACE or HAPE: DESCEND IMMEDIATELY — minimum 300–1000 m","Supplemental oxygen if available","Gamow bag (portable hyperbaric chamber) if available","Dexamethasone (for HACE) or Nifedipine (for HAPE) if trained and available","HACE/HAPE: emergency evacuation"],
+    avoid:"Never ascend with Acute Mountain Sickness symptoms. Descent is the only definitive treatment." },
   { id:"frostnip", cat:"ENVIRONMENTAL", severity:"low", evac:false,
     title:"Frostnip",
     signs:["Skin pale, cold, and numb","Tissue remains soft and pliable throughout","Rewarms quickly with body heat","No blisters form"],
@@ -230,12 +230,12 @@ const AILMENTS = [
     avoid:"Never rewarm if refreezing is possible. No dry heat. No rubbing." },
   { id:"dehydration", cat:"ENVIRONMENTAL", severity:"low", evac:false,
     title:"Dehydration",
-    signs:["Thirst, dry mouth and lips","Dark urine or decreased urine output","Headache, fatigue, decreased performance","Dizziness on standing","Skin tenting on pinch test","Severe: AMS, rapid HR, hypotension"],
-    tx:["Oral rehydration — water + electrolytes","500 mL over 30 min for mild dehydration","Sports drink, ORS, or dilute juice if available","Salty snack + water is an effective field solution","Severe (AMS or unable to drink) — IV fluids + evacuation","Monitor urine output and color to guide ongoing rehydration"] },
+    signs:["Thirst, dry mouth and lips","Dark urine or decreased urine output","Headache, fatigue, decreased performance","Dizziness on standing","Skin tenting on pinch test","Severe: altered mental status, rapid Heart Rate, low blood pressure"],
+    tx:["Oral rehydration — water + electrolytes","500 mL over 30 min for mild dehydration","Sports drink, Oral Rehydration Solution (ORS), or dilute juice if available","Salty snack + water is an effective field solution","Severe (altered mental status or unable to drink) — IV fluids + evacuation","Monitor urine output and color to guide ongoing rehydration"] },
   { id:"gi_illness", cat:"GI ILLNESS", severity:"moderate", evac:false,
     title:"GI Illness / Gastroenteritis",
     signs:["Nausea, vomiting, diarrhea","Cramping abdominal pain","Possible low-grade fever","Onset 1–6 h: likely toxin; 6–24 h: likely bacterial"],
-    tx:["Oral rehydration — small frequent sips of water or ORS","BRAT diet when tolerated: banana, rice, applesauce, toast","Ondansetron (Zofran) for vomiting if available","Rest and monitor vitals","Evac if: cannot keep fluids down 24 h, blood in stool, high fever, severe pain, or AMS"],
+    tx:["Oral rehydration — small frequent sips of water or Oral Rehydration Solution (ORS)","BRAT diet when tolerated: Banana, Rice, Applesauce, Toast","Ondansetron (Zofran) for vomiting if available","Rest and monitor vitals","Evacuate if: cannot keep fluids down 24 hours, blood in stool, high fever, severe pain, or altered mental status"],
     avoid:"Do not give anti-diarrheals if bloody diarrhea or high fever present." },
   { id:"giardia", cat:"GI ILLNESS", severity:"moderate", evac:true,
     title:"Giardia / Waterborne Illness",
@@ -253,8 +253,8 @@ const AILMENTS = [
     avoid:"No pressure patching. No irrigation of open globe. No eye drops." },
   { id:"asthma", cat:"RESPIRATORY", severity:"moderate", evac:true,
     title:"Asthma Attack / Bronchospasm",
-    signs:["Expiratory wheeze or silent chest (critical — no air movement)","Difficulty breathing, chest tightness, SOB","Use of accessory muscles","Cyanosis in severe cases","Triggers: cold air, exertion, allergen, smoke"],
-    tx:["Sit upright — do not lay patient down","Albuterol MDI: 4–8 puffs via spacer every 20 min ×3 if available","Pursed-lip breathing with calm reassurance","Keep warm — cold air worsens bronchospasm","Mild improvement in 20 min in known asthmatic — may monitor","No improvement, silent chest, or cyanosis — emergency evacuation"] },
+    signs:["Expiratory wheeze or silent chest (critical — no air movement)","Shortness of breath, chest tightness, difficulty breathing","Use of accessory muscles (neck, shoulder muscles visible with each breath)","Cyanosis (blue lips/fingertips) in severe cases","Triggers: cold air, exertion, allergen, smoke"],
+    tx:["Sit upright — do not lay patient down","Albuterol inhaler (MDI): 4–8 puffs via spacer every 20 min ×3 if available","Pursed-lip breathing with calm reassurance","Keep warm — cold air worsens bronchospasm","Mild improvement in 20 min in known asthmatic — may monitor","No improvement, silent chest, or cyanosis — emergency evacuation"] },
   { id:"plant_contact", cat:"SKIN & ALLERGIC", severity:"low", evac:false, img:"rash",
     title:"Contact Dermatitis (Poison Ivy / Oak / Sumac)",
     signs:["Linear streaks of intense itching redness along contact lines","Vesicles and blisters in streaks or patches","Onset 12–72 h after plant contact","Fluid from blisters does NOT spread the rash"],
@@ -275,7 +275,7 @@ const AILMENTS = [
   { id:"seizure", cat:"NEUROLOGICAL", severity:"high", evac:true,
     title:"Seizure",
     signs:["Tonic-clonic: whole body stiffening followed by jerking","Post-ictal phase: prolonged confusion and fatigue after episode","May bite tongue or be incontinent","First seizure always requires medical evaluation"],
-    tx:["Protect from injury — clear area of hazards; do NOT restrain patient","Turn on side (recovery position) during and after","Do NOT put anything in mouth during seizure","Time the seizure — > 5 min = status epilepticus, emergency","After: recovery position, monitor airway, assess LOR","First seizure, prolonged, or post-ictal AMS — evacuate"] },
+    tx:["Protect from injury — clear area of hazards; do NOT restrain patient","Turn on side (recovery position) during and after","Do NOT put anything in mouth during seizure","Time the seizure — > 5 min = status epilepticus, emergency","After: recovery position, monitor airway, assess Level of Responsiveness","First seizure, prolonged seizure, or post-ictal altered mental status — evacuate"] },
   { id:"diabetic", cat:"NEUROLOGICAL", severity:"moderate", evac:true,
     title:"Diabetic Emergency / Hypoglycemia",
     signs:["Sudden onset: shaky, sweaty, pale, anxious","Patient may self-identify early hypoglycemia","Severe: confusion, unresponsive, or seizure","History of diabetes; may have missed meal or over-exerted"],
@@ -298,9 +298,9 @@ const EVAC_TRIGGERS = {
     "Uncontrolled airway / respiratory distress",
     "Uncontrolled severe bleeding / shock",
     "Declining or altered mental status",
-    "Suspected spinal injury with deficits",
+    "Suspected spinal injury with neurological deficits",
     "Chest trauma with breathing compromise",
-    "Anaphylaxis post-epi",
+    "Anaphylaxis after epinephrine injection",
     "Severe hypothermia",
     "Open fracture / joint dislocation (unreduced)",
     "Lightning strike",
@@ -308,16 +308,16 @@ const EVAC_TRIGGERS = {
   ],
   urgent: [
     "Stable vitals but high-energy mechanism",
-    "Spreading cellulitis / lymphangitic streaking",
+    "Spreading cellulitis or red streaking up limb (lymphangitis)",
     "Suspected femur fracture",
     "Eye injury / sudden vision loss",
-    "Significant AMS without clear cause",
+    "Significant altered mental status without clear cause",
     "Snakebite (all cases)",
   ],
   monitor: [
-    "Reduced dislocation, NV intact, ambulating",
+    "Reduced dislocation, circulation/sensation/motion intact, ambulating",
     "Mild hypothermia, actively rewarming",
-    "Resolved anaphylaxis, 2+ hrs post-epi, no recurrence",
+    "Resolved anaphylaxis, 2+ hours post-epinephrine, no recurrence",
     "Minor laceration, wound clean, patient stable",
     "Ankle sprain, able to weight-bear, no deformity",
   ],
@@ -913,7 +913,7 @@ export default function WFRField() {
               <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"6px", marginBottom:"12px" }}>
                 {VITAL_FIELDS.map(f => (
                   <div key={f.key}>
-                    <label style={{ display:"block", fontSize:"9px", color:C.textDim, marginBottom:"4px", textAlign:"center" }}>{f.label}</label>
+                    <label style={{ display:"block", fontSize:"9px", color:C.textDim, marginBottom:"4px", textAlign:"center" }}>{f.fullLabel || f.label}</label>
                     <input value={vitalDraft[f.key] || ""} onChange={e => setVitalDraft(p => ({ ...p, [f.key]:e.target.value }))} placeholder={f.placeholder}
                       style={{ background:C.raised, border:`1px solid ${C.border}`, borderRadius:"6px", padding:"8px 2px", color:C.text, fontFamily:mono, fontSize:"12px", width:"100%", textAlign:"center", outline:"none", boxSizing:"border-box", WebkitAppearance:"none" }} />
                   </div>
@@ -953,7 +953,7 @@ export default function WFRField() {
 
             {/* SCTM ref */}
             <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"8px", padding:"12px" }}>
-              <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"10px" }}>SCTM QUICK REF</div>
+              <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"10px" }}>SKIN COLOR, TEMPERATURE & MOISTURE (SCTM)</div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
                 {[{l:"Normal",v:"Pink / Warm / Dry",c:C.accent},{l:"Shock",v:"Pale / Cool / Clammy",c:C.danger},{l:"Heat ill.",v:"Red / Hot / Wet or Dry",c:C.warn},{l:"Hypo.",v:"Gray / Cold / Dry",c:C.blue}].map(s => (
                   <div key={s.l} style={{ padding:"9px 11px", background:C.raised, borderRadius:"6px", borderLeft:`3px solid ${s.c}` }}>
@@ -967,7 +967,7 @@ export default function WFRField() {
             {/* Normal ranges */}
             <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"8px", padding:"12px" }}>
               <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"8px" }}>NORMAL ADULT RANGES</div>
-              {[{l:"HR",n:"60–100 bpm",b:"<50 or >130"},{l:"RR",n:"12–20 brpm",b:"<8 or >24"},{l:"SYS BP",n:">90 mmHg",b:"<80"},{l:"SpO2",n:">94%",b:"<90%"},{l:"CRT",n:"<2 sec",b:">2 sec"}].map(r => (
+              {[{l:"Heart Rate (HR)",n:"60–100 bpm",b:"<50 or >130"},{l:"Resp. Rate (RR)",n:"12–20 brpm",b:"<8 or >24"},{l:"Systolic BP",n:">90 mmHg",b:"<80"},{l:"SpO2",n:">94%",b:"<90%"},{l:"Cap. Refill (CRT)",n:"<2 sec",b:">2 sec"}].map(r => (
                 <div key={r.l} style={{ display:"flex", alignItems:"center", padding:"7px 0", borderBottom:`1px solid ${C.raised}`, gap:"10px" }}>
                   <span style={{ fontSize:"11px", color:C.textDim, width:"50px", flexShrink:0 }}>{r.l}</span>
                   <span style={{ fontSize:"12px", color:C.accent, flex:1, fontWeight:600 }}>{r.n}</span>
