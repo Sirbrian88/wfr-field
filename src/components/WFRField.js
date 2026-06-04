@@ -1034,7 +1034,7 @@ export default function WFRField(){
             <input
               type="file"
               accept="image/*"
-              capture="environment"
+
               onChange={handlePhotoSelect}
               style={{display:"none"}}
             />
@@ -1083,7 +1083,7 @@ export default function WFRField(){
           <div style={{background:"#0d1f10",border:"1px solid #2a6e22",borderRadius:"10px",padding:"14px",marginBottom:"12px"}}>
 
             {/* Anaphylaxis risk banner */}
-            {photoResult.anaphylaxisRisk==="High"&&(
+            {photoResult.anaphylaxisRisk==="High"&&photoResult.severity!=="None — appears normal"&&(
               <div style={{
                 background:"#b71c1c",border:"2px solid #ff1744",borderRadius:"8px",
                 padding:"12px 14px",marginBottom:"14px",
@@ -1117,12 +1117,19 @@ export default function WFRField(){
               }}>
                 {photoResult.severity}
               </span>
-              {photoResult.anaphylaxisRisk&&photoResult.anaphylaxisRisk!=="Low"&&(
+              {photoResult.anaphylaxisRisk&&photoResult.anaphylaxisRisk!=="None"&&photoResult.anaphylaxisRisk!=="Low"&&(
                 <span style={{background:"rgba(183,28,28,0.3)",border:"1px solid #b71c1c",borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,color:"#ef9a9a"}}>
                   Anaphylaxis: {photoResult.anaphylaxisRisk}
                 </span>
               )}
             </div>
+
+            {/* Plain English summary */}
+            {photoResult.plainEnglish&&(
+              <div style={{background:"#1a3a1c",borderRadius:"8px",padding:"10px 12px",marginBottom:"12px",borderLeft:"3px solid #4caf50"}}>
+                <div style={{fontSize:"13px",color:"#e8f5e9",lineHeight:"1.5"}}>{photoResult.plainEnglish}</div>
+              </div>
+            )}
 
             {/* Findings */}
             {photoResult.findings&&(
