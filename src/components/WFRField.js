@@ -1034,7 +1034,6 @@ export default function WFRField(){
             <input
               type="file"
               accept="image/*"
-
               onChange={handlePhotoSelect}
               style={{display:"none"}}
             />
