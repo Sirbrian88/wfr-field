@@ -1,1094 +1,1382 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useOfflineTriage } from "../hooks/useOfflineTriage";
+import { createTriageRunner } from "../utils/triageEngine";
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   PALETTE — light clinical theme
-══════════════════════════════════════════════════════════════════════════════ */
 const C = {
-  bg:           "#f3f5f2",
-  surface:      "#ffffff",
-  raised:       "#edf0ea",
-  border:       "#cdd4c7",
-  accent:       "#2a6e22",
-  accentLight:  "#e6f4e2",
-  warn:         "#c45000",
-  warnLight:    "#fff3e0",
-  danger:       "#b71c1c",
-  dangerLight:  "#ffebee",
-  blue:         "#1a5276",
-  blueLight:    "#eaf2fb",
-  purple:       "#6a1b9a",
-  purpleLight:  "#f3e5f5",
-  text:         "#1c2d1e",
-  textDim:      "#4a5c4b",
-  textFaint:    "#8a9c8b",
-  white:        "#ffffff",
+  bg:          "#f3f5f2",
+  surface:     "#ffffff",
+  raised:      "#edf0ea",
+  border:      "#cdd4c7",
+  accent:      "#2a6e22",
+  accentLight: "#e6f4e2",
+  gold:        "#b8860b",
+  goldLight:   "#fff8e1",
+  warn:        "#c45000",
+  warnLight:   "#fff3e0",
+  danger:      "#b71c1c",
+  dangerLight: "#ffebee",
+  blue:        "#1a5276",
+  blueLight:   "#eaf2fb",
+  purple:      "#6a1b9a",
+  purpleLight: "#f3e5f5",
+  text:        "#1c2d1e",
+  textDim:     "#4a5c4b",
+  textFaint:   "#8a9c8b",
+  white:       "#ffffff",
 };
 const mono = "ui-monospace,'Courier New',monospace";
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   PAS STEPS
-══════════════════════════════════════════════════════════════════════════════ */
-const PAS = [
-  { id:"ssu",    tag:"SCENE",     color:C.warn,   label:"Scene Size-Up",
-    items:["Scene safe?","Mechanism of Injury (MOI) / Nature of Illness (NOI)","# of patients","Personal Protective Equipment (PPE) on","Resources assessed"] },
-  { id:"resp",   tag:"PRIMARY",   color:C.danger, label:"Responsiveness",
-    items:["Tap & shout — get a response","AVPU level (Alert / Voice / Pain / Unresponsive)","Airway open?","Breathing present?"] },
-  { id:"abc",    tag:"PRIMARY",   color:C.danger, label:"ABCs + Bleeding",
-    items:["Severe bleeding controlled","Pulses present","Skin Color, Temperature & Moisture","Shock signs assessed"] },
-  { id:"sample", tag:"SECONDARY", color:C.blue,   label:"SAMPLE History",
-    items:["Signs & symptoms","Allergies","Medications","Pertinent history","Last food/drink","Events leading up"] },
-  { id:"vitals", tag:"SECONDARY", color:C.blue,   label:"Vital Signs",
-    items:["Heart Rate (HR) — rate & quality","Respiratory Rate (RR) — rate & quality","Blood Pressure / Perfusion","Skin Color, Temperature & Moisture (SCTM)","Level of Responsiveness — alert and oriented?"] },
-  { id:"exam",   tag:"SECONDARY", color:C.blue,   label:"Head-to-Toe Exam",
-    items:["Head / skull / face","Neck / cervical spine","Chest / breath sounds","Abdomen / pelvis","Extremities — DCAP-BTLS (Deformity, Contusions, Abrasions, Punctures / Burns, Tenderness, Lacerations, Swelling)","Posterior / back"] },
-  { id:"evac",   tag:"EVAC",      color:C.purple, label:"Evac Decision",
-    items:["Stable or unstable?","Walk-out capable?","Distance to definitive care","Weather window","Emergency or planned evacuation?"] },
+/* 9-STEP PAS */
+const STEPS = [
+  { id:"scene", tag:"SCENE", color:"#c45000", triLayer:0, label:"Scene Size-Up",
+    checks:[
+      "Scene safe — hazards identified and controlled?",
+      "Mechanism of Injury (MOI) / Nature of Illness (NOI) determined",
+      "Number of patients assessed",
+      "Personal Protective Equipment (PPE) donned",
+      "Additional resources needed / called?",
+    ],
+    fields:[
+      { key:"numPatients", label:"# Patients",        type:"number",   placeholder:"1" },
+      { key:"moi",         label:"MOI / NOI",         type:"text",     placeholder:"e.g. fall from height, twisted ankle, bee sting" },
+      { key:"sceneSafe",   label:"Scene Safety Notes",type:"text",     placeholder:"hazards, controls" },
+      { key:"resources",   label:"Resources",         type:"text",     placeholder:"kit, litter, comms, other responders" },
+    ],
+  },
+  { id:"initial", tag:"PRIMARY", color:"#b71c1c", triLayer:1, label:"Initial Assessment",
+    checks:[
+      "General impression — sick or not sick?",
+      "Level of Responsiveness (LOR) — AVPU",
+      "Airway open and maintained?",
+      "Breathing present and adequate?",
+      "Severe bleeding controlled?",
+      "Circulation / perfusion adequate?",
+      "Spine precautions needed?",
+    ],
+    fields:[
+      { key:"lor",      label:"Level of Responsiveness (LOR)", type:"select",
+        options:["—","A+Ox4 — Alert, oriented ×4","A+Ox3","A+Ox2","A+Ox1","V — Responds to voice","P — Responds to pain","U — Unresponsive"] },
+      { key:"airway",   label:"Airway",   type:"select", options:["—","Open","Compromised — repositioned","Obstructed"] },
+      { key:"breathing",label:"Breathing",type:"select", options:["—","Present — normal","Present — labored","Absent"] },
+      { key:"bleeding", label:"Severe Bleeding", type:"select", options:["—","None present","Controlled","Uncontrolled"] },
+      { key:"spine",    label:"Spine Precautions", type:"select", options:["—","Not indicated","Indicated — immobilized","Cleared"] },
+      { key:"notes",    label:"Notes",    type:"text",   placeholder:"additional primary findings" },
+    ],
+  },
+  { id:"headtoe", tag:"SECONDARY", color:"#1a5276", triLayer:2, label:"Head-to-Toe Exam",
+    checks:[
+      "Head / skull / scalp / face examined",
+      "Eyes — pupils equal and reactive to light (PEARL)?",
+      "Ears / nose — blood or fluid?",
+      "Neck / cervical spine — midline tenderness?",
+      "Chest — equal expansion, breath sounds bilateral?",
+      "Abdomen — soft, tender, or rigid?",
+      "Pelvis — stable, no tenderness?",
+      "Extremities — CSM (Circulation, Sensation, Motion) in all four?",
+      "Posterior / back — spine tenderness along length?",
+    ],
+    fields:[
+      { key:"head",        label:"Head / Skull / Face",   type:"text",     placeholder:"DCAP-BTLS, PEARL, facial symmetry" },
+      { key:"neck",        label:"Neck / C-Spine",        type:"text",     placeholder:"midline pain, JVD, trachea midline?" },
+      { key:"chest",       label:"Chest / Breath Sounds", type:"text",     placeholder:"equal, clear; paradoxical?" },
+      { key:"abdomen",     label:"Abdomen / Pelvis",      type:"text",     placeholder:"tenderness, rigidity, stability" },
+      { key:"extremities", label:"Extremities",           type:"textarea", placeholder:"each limb: CSM, deformity, wounds, swelling" },
+      { key:"posterior",   label:"Posterior / Back",      type:"text",     placeholder:"spine tenderness, contusions, flanks" },
+      { key:"notes",       label:"Additional Findings",   type:"textarea", placeholder:"" },
+    ],
+  },
+  { id:"vitals", tag:"SECONDARY", color:"#1a5276", triLayer:2, label:"Vital Signs",
+    checks:[
+      "Level of Responsiveness documented",
+      "Heart Rate — rate and quality",
+      "Respiratory Rate — rate and quality",
+      "Skin — Color, Temperature, Moisture (SCTM)",
+      "Blood Pressure / perfusion assessed",
+      "Pupils — equal, round, reactive to light?",
+      "Temperature estimated",
+      "Second set of vitals obtained (trend)?",
+    ],
+    fields:[],
+  },
+  { id:"history", tag:"SECONDARY", color:"#1a5276", triLayer:2, label:"Patient History",
+    checks:[
+      "Chief complaint / OPQRST obtained",
+      "Signs & Symptoms documented",
+      "Allergies asked",
+      "Medications listed",
+      "Pertinent past medical history",
+      "Last intake (food, water, medications) noted",
+      "Events leading to incident documented",
+    ],
+    fields:[
+      { key:"age",     label:"Age / Sex",            type:"text",     placeholder:"e.g. 34 M" },
+      { key:"opqrst",  label:"OPQRST",               type:"textarea", placeholder:"Onset:\nProvocation:\nQuality:\nRadiation:\nSeverity: /10\nTime:" },
+      { key:"signs",   label:"Signs & Symptoms (S)", type:"textarea", placeholder:"chief complaint and objective findings" },
+      { key:"allergy", label:"Allergies (A)",         type:"text",     placeholder:"NKDA, or list" },
+      { key:"meds",    label:"Medications (M)",       type:"text",     placeholder:"current medications and doses" },
+      { key:"history", label:"Pertinent History (P)", type:"textarea", placeholder:"relevant medical / surgical history" },
+      { key:"last",    label:"Last Intake (L)",       type:"text",     placeholder:"food, water, meds — time and amount" },
+      { key:"events",  label:"Events Leading Up (E)", type:"textarea", placeholder:"what happened before the incident" },
+      { key:"pain",    label:"Pain Scale (0–10)",     type:"pain" },
+    ],
+  },
+  { id:"problems", tag:"ASSESSMENT", color:"#6a1b9a", triLayer:null, label:"Problem List & Plan",
+    checks:[
+      "Problem list created (most critical first)",
+      "Spine injury ruled in or out",
+      "Shock ruled in or out",
+      "Treatment priorities identified",
+      "Evacuation urgency determined",
+    ],
+    fields:[
+      { key:"problems",   label:"Problem List (most critical first)", type:"textarea", placeholder:"1. ...\n2. ...\n3. ..." },
+      { key:"spineRuled", label:"Spine Injury",   type:"select", options:["—","Cleared — no spine precautions","Not cleared — immobilized","Unable to assess"] },
+      { key:"shock",      label:"Shock",          type:"select", options:["—","Not present","Suspected — treating","Confirmed — emergency evac"] },
+      { key:"evacType",   label:"Evacuation",     type:"select", options:["—","Emergency — call now","Urgent — within hours","Planned walk-out","Monitor in place"] },
+      { key:"plan",       label:"Treatment Plan", type:"textarea", placeholder:"plan for each identified problem" },
+    ],
+  },
+  { id:"pfa", tag:"PSYCH", color:"#2a6e22", triLayer:null, label:"Psychological First Aid",
+    checks:[
+      "Safety — physical and psychological safety established",
+      "Calm — patient calmed, acute distress reduced",
+      "Efficacy — patient involved in own care where possible",
+      "Connection — linked to social supports / team",
+      "Hope — realistic reassurance provided",
+    ],
+    fields:[
+      { key:"pfaNotes", label:"PFA Notes", type:"textarea", placeholder:"patient emotional state, interventions used" },
+    ],
+  },
+  { id:"interventions", tag:"TREATMENT", color:"#c45000", triLayer:null, label:"Interventions",
+    checks:[
+      "Airway interventions performed if needed",
+      "Bleeding / wound care completed",
+      "Splinting / immobilization done if needed",
+      "Medications administered if applicable",
+      "Patient insulated / sheltered",
+      "Oral fluids given if appropriate",
+    ],
+    fields:[
+      { key:"interventionNotes", label:"Interventions Performed", type:"textarea",
+        placeholder:"list each treatment, medication (dose, route, time), and response" },
+    ],
+  },
+  { id:"monitor", tag:"MONITOR", color:"#4a5c4b", triLayer:null, label:"Monitor & Evac",
+    checks:[
+      "Vital signs trending — improving, stable, or declining?",
+      "Anticipated problems identified",
+      "Evacuation route / resources confirmed",
+      "Communications made (SAR, 911, base camp)?",
+      "Ongoing reassessment interval set (every 5 or 15 min)",
+    ],
+    fields:[
+      { key:"trend",       label:"Patient Trend",        type:"select",   options:["—","Improving","Stable","Declining"] },
+      { key:"anticipated", label:"Anticipated Problems", type:"textarea", placeholder:"what to watch for, and planned responses" },
+      { key:"evacPlan",    label:"Evacuation Plan",      type:"textarea", placeholder:"route, resources, comms, ETA to care" },
+      { key:"comms",       label:"Communications",       type:"textarea", placeholder:"who was contacted, when, response" },
+    ],
+  },
 ];
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   PAS DATA ENTRY FIELDS
-══════════════════════════════════════════════════════════════════════════════ */
-const PAS_FIELDS = {
-  ssu: [
-    { key:"numPatients", label:"# Patients",      type:"number",   placeholder:"1" },
-    { key:"moi",         label:"Mechanism of Injury / Nature of Illness (MOI/NOI)", type:"text", placeholder:"e.g. fall from height, twisted ankle, bee sting" },
-    { key:"sceneSafe",   label:"Scene Safety",     type:"text",     placeholder:"hazards present, control measures" },
-    { key:"resources",   label:"Resources",        type:"text",     placeholder:"kit, litter, comms, other responders" },
-  ],
-  resp: [
-    { key:"avpu",      label:"AVPU (Alert / Voice / Pain / Unresponsive)", type:"select", options:["—","Alert","Verbal — responds to voice","Pain — responds to pain only","Unresponsive"] },
-    { key:"airway",    label:"Airway",        type:"select",   options:["—","Open","Compromised","Obstructed"] },
-    { key:"breathing", label:"Breathing",     type:"select",   options:["—","Present — normal","Present — labored","Absent"] },
-    { key:"notes",     label:"Notes",         type:"text",     placeholder:"additional findings" },
-  ],
-  abc: [
-    { key:"bleeding",  label:"Bleeding Controlled",         type:"select", options:["—","Yes","No","N/A"] },
-    { key:"pulse",     label:"Pulse",                       type:"select", options:["—","Strong","Weak","Thready","Absent"] },
-    { key:"sctm",      label:"Skin — Color, Temperature & Moisture", type:"text", placeholder:"e.g. pink / warm / dry" },
-    { key:"shock",     label:"Shock Signs",                 type:"select", options:["—","None","Present"] },
-    { key:"notes",     label:"Notes",                       type:"text",   placeholder:"" },
-  ],
-  sample: [
-    { key:"signs",   label:"Signs & Symptoms",  type:"textarea", placeholder:"chief complaint and objective findings" },
-    { key:"allergy", label:"Allergies",          type:"text",     placeholder:"No known drug allergies (NKDA), or list them" },
-    { key:"meds",    label:"Medications",        type:"text",     placeholder:"current medications and doses" },
-    { key:"history", label:"Pertinent History",  type:"textarea", placeholder:"relevant medical history" },
-    { key:"last",    label:"Last Food / Drink",  type:"text",     placeholder:"time and what" },
-    { key:"events",  label:"Events Leading Up",  type:"textarea", placeholder:"what happened before the incident" },
-  ],
-  vitals: [],
-  exam: [
-    { key:"head",        label:"Head / Skull / Face",   type:"text",     placeholder:"Deformity, Contusions, Abrasions, Punctures (DCAP) — pupils equal & reactive to light?" },
-    { key:"neck",        label:"Neck / Cervical Spine", type:"text",     placeholder:"midline pain, jugular vein distension (JVD), trachea midline?" },
-    { key:"chest",       label:"Chest / Breath Sounds", type:"text",     placeholder:"equal, clear; paradoxical?" },
-    { key:"abdomen",     label:"Abdomen / Pelvis",      type:"text",     placeholder:"tenderness, rigidity, instability" },
-    { key:"extremities", label:"Extremities",           type:"textarea", placeholder:"each limb: Circulation, Sensation & Motion (CSM) — deformity, wounds, swelling" },
-    { key:"posterior",   label:"Posterior / Back",      type:"text",     placeholder:"spine tenderness to palpation, contusions, flanks" },
-    { key:"notes",       label:"Additional Findings",   type:"textarea", placeholder:"" },
-  ],
-  evac: [
-    { key:"status",   label:"Patient Status",   type:"select",   options:["—","Stable","Unstable"] },
-    { key:"walkout",  label:"Walk-Out Capable", type:"select",   options:["—","Yes","No","Unknown"] },
-    { key:"distance", label:"Distance to Care", type:"text",     placeholder:"miles or travel time to hospital" },
-    { key:"weather",  label:"Weather",          type:"text",     placeholder:"current and forecast window" },
-    { key:"type",     label:"Evacuation Type",  type:"select",   options:["—","Emergency — call now","Urgent — within hours","Planned walk-out","Monitor in place"] },
-    { key:"plan",     label:"Evacuation Plan",  type:"textarea", placeholder:"route, resources, comms plan" },
-  ],
-};
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   VITAL FIELDS
-══════════════════════════════════════════════════════════════════════════════ */
 const VITAL_FIELDS = [
-  { key:"lor",  label:"LOR",  fullLabel:"Level of Responsiveness",      placeholder:"A+Ox4" },
-  { key:"hr",   label:"HR",   fullLabel:"Heart Rate",                    placeholder:"bpm" },
-  { key:"rr",   label:"RR",   fullLabel:"Resp. Rate",                    placeholder:"brpm" },
-  { key:"bp",   label:"BP",   fullLabel:"Blood Pressure",                placeholder:"sys/dia" },
-  { key:"sctm", label:"SCTM", fullLabel:"Skin (Color / Temp / Moisture)",placeholder:"P/W/D" },
+  { key:"lor",    label:"LOR",    fullLabel:"Level of Responsiveness",       placeholder:"A+Ox4" },
+  { key:"hr",     label:"HR",     fullLabel:"Heart Rate",                    placeholder:"bpm + quality" },
+  { key:"rr",     label:"RR",     fullLabel:"Resp. Rate",                    placeholder:"brpm + quality" },
+  { key:"sctm",   label:"SCTM",   fullLabel:"Skin (Color/Temp/Moisture)",    placeholder:"P/W/D" },
+  { key:"bp",     label:"BP",     fullLabel:"Blood Pressure",                placeholder:"sys/dia or est." },
+  { key:"pupils", label:"Pupils", fullLabel:"Pupils",                        placeholder:"PEARL / unequal" },
+  { key:"temp",   label:"Temp",   fullLabel:"Temperature",                   placeholder:"est. normal/hypo/hyper" },
 ];
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   PROTOCOLS
-══════════════════════════════════════════════════════════════════════════════ */
 const PROTOCOLS = [
-  { id:"shock", flag:"URGENT", title:"Shock / Hypoperfusion",
-    signs:["Pale, cool, clammy skin","Heart Rate > 100 or weak/thready pulse","Respiratory Rate > 24 or labored","Altered Mental Status (AMS) — restless or anxious","Capillary Refill Time (CRT) > 2 seconds"],
+  { id:"shock",  flag:"URGENT",    title:"Shock / Hypoperfusion",
+    signs:["Pale, cool, clammy skin","HR > 100 or weak/thready pulse","RR > 24 or labored","Altered Mental Status — restless or anxious","CRT > 2 seconds"],
     tx:["Control bleeding — direct pressure","Supine or legs elevated (no spine concern)","Insulate from ground + overhead","Keep patient still & calm","Nothing by mouth","Evacuate immediately"] },
-  { id:"spine", flag:"PROTOCOL", title:"Spinal Clearance",
-    signs:["Reliable patient? (no altered mental status, no intoxication, no distracting injury)","Mechanism with axial load (vertical force on spine)?","Midline neck/back pain or tenderness?","Neurological deficit — numbness, tingling, or weakness?"],
+  { id:"spine",  flag:"PROTOCOL",  title:"Spinal Clearance",
+    signs:["Reliable patient? (no AMS, no intoxication, no distracting injury)","Mechanism with axial load?","Midline neck/back pain or tenderness?","Neurological deficit — numbness, tingling, weakness?"],
     tx:["All 4 must be NO to clear spine","Any YES → full immobilization","Immobilize in position found","Pad voids; secure head last","Evacuate — do not walk"] },
-  { id:"anaph", flag:"URGENT", title:"Anaphylaxis",
-    signs:["Hives / flushing / itching","Throat tightness / stridor (high-pitched breathing noise)","Wheezing / shortness of breath","Low blood pressure / weak pulse","Vomiting / cramping"],
-    tx:["Epinephrine auto-injector into mid-outer thigh muscle","Repeat epinephrine every 5–15 min if no improvement","Diphenhydramine 25–50 mg if available","Supine if low blood pressure / upright if difficulty breathing","Monitor airway closely","Evacuate immediately after epinephrine"] },
-  { id:"head", flag:"MONITOR", title:"Head Injury / Traumatic Brain Injury (TBI)",
-    signs:["Loss of consciousness (LOC) at any point?","Amnesia before or after the event?","Persistent headache","Repeated vomiting","Pupils unequal or sluggish","Altered mental status — confusion, combative, or personality change"],
-    tx:["Any loss of consciousness or altered mental status → spine precautions","Serial neuro checks every 15 min","Any decline → immediate evacuation","Nothing by mouth if altered mental status","Keep warm; monitor airway","Do NOT give NSAIDs or opioids"] },
-  { id:"hypo", flag:"PROTOCOL", title:"Hypothermia",
+  { id:"anaph",  flag:"URGENT",    title:"Anaphylaxis",
+    signs:["Hives / flushing / itching","Throat tightness / stridor","Wheezing / shortness of breath","Low BP / weak pulse","Vomiting / cramping"],
+    tx:["Epinephrine auto-injector — mid-outer thigh","Repeat epi every 5–15 min if no improvement","Diphenhydramine 25–50 mg if available","Supine if low BP / upright if SOB","Monitor airway closely","Evacuate immediately"] },
+  { id:"head",   flag:"MONITOR",   title:"Head Injury / TBI",
+    signs:["Loss of consciousness at any point?","Amnesia before or after?","Persistent headache","Repeated vomiting","Pupils unequal or sluggish","Altered mental status"],
+    tx:["Any LOC or AMS → spine precautions","Serial neuro checks every 15 min","Any decline → immediate evacuation","NPO if AMS","Keep warm; monitor airway","No NSAIDs or opioids"] },
+  { id:"hypo",   flag:"PROTOCOL",  title:"Hypothermia",
     signs:["Mild: shivering, clumsy, poor judgment","Moderate: stops shivering, rigid, confused","Severe: no shivering, rigid, faint pulse"],
-    tx:["Handle gently — no rough movement (ventricular fibrillation risk)","Remove wet clothing; cut if needed","Insulate: pad + bag + vapor barrier","Heat trunk only — no heat packs on extremities","Warm sweet fluids if alert and can swallow","Severe → horizontal evacuation"] },
-  { id:"wound", flag:"PROTOCOL", title:"Wound Management",
+    tx:["Handle gently — VFib risk","Remove wet clothing","Insulate: pad + bag + vapor barrier","Heat trunk only","Warm sweet fluids if alert","Severe → horizontal evacuation"] },
+  { id:"wound",  flag:"PROTOCOL",  title:"Wound Management",
     signs:["Mechanism: crush / puncture / laceration / avulsion","Contamination level","Time since injury","Distal neurovascular status intact?"],
-    tx:["Irrigate: 60 mL syringe, 18-gauge tip, high pressure, clean water","60–100 mL per cm of wound length","Debride visible debris gently","Pack deep wounds; do NOT close contaminated wounds","Dress & splint if near joint","Evacuate if: joint involved, infection signs, neurovascular deficit"] },
-  { id:"lightning", flag:"URGENT", title:"Lightning Strike",
-    signs:["Scene: active storm? Scatter group first","Entry/exit burns possible","Cardiac arrest common — CPR indicated","Keraunoparalysis (temporary paralysis)","Altered mental status, hearing loss, eye damage"],
+    tx:["Irrigate: 60 mL syringe, 18g tip, high pressure","60–100 mL per cm wound length","Debride visible debris gently","Pack deep wounds; do NOT close contaminated","Dress & splint if near joint","Evac if: joint involved, infection signs, NV deficit"] },
+  { id:"lightning",flag:"URGENT",  title:"Lightning Strike",
+    signs:["Scene: active storm? Scatter group first","Entry/exit burns possible","Cardiac arrest common — CPR indicated","Keraunoparalysis (temporary paralysis)","AMS, hearing loss, eye damage"],
     tx:["Safe scene — move from strike zone","Triage REVERSE: treat apparent deaths first","CPR if pulseless — high success rate","Spine precautions","Monitor closely 24 hours","All struck patients must evacuate"] },
 ];
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   AILMENTS DATABASE
-══════════════════════════════════════════════════════════════════════════════ */
 const AILMENTS = [
-  { id:"snakebite", cat:"BITES & STINGS", severity:"high", evac:true, img:"snake",
+  { id:"snakebite", cat:"BITES & STINGS", severity:"high", evac:true,
     title:"Snakebite",
-    signs:["1–2 fang puncture marks","Local pain, swelling, bruising within minutes","Nausea, vomiting, metallic taste","Numbness of mouth/face","Severe: low blood pressure, neurological deficits, coagulopathy (blood not clotting)"],
-    tx:["Keep patient calm and still — movement spreads venom","Immobilize bitten limb at or below heart level","Remove rings/watches/tight clothing near bite","Mark swelling border + time every 15 min","Do NOT cut, suck, tourniquet, or apply ice","Evacuate immediately — antivenom is definitive treatment"],
-    avoid:"No tourniquet. No electric shock. No incisions. No ice." },
-  { id:"spider", cat:"BITES & STINGS", severity:"moderate", evac:true, img:"spider",
+    signs:["1–2 fang puncture marks","Local pain, swelling, bruising within minutes","Nausea, vomiting, metallic taste","Numbness of mouth/face","Severe: low BP, neuro deficits, coagulopathy"],
+    tx:["Keep patient calm and still","Immobilize bitten limb at/below heart","Remove rings/watches near bite","Mark swelling border + time every 15 min","Do NOT cut, suck, tourniquet, or ice","Evacuate immediately — antivenom is definitive"],
+    avoid:"No tourniquet. No incisions. No ice." },
+  { id:"spider", cat:"BITES & STINGS", severity:"moderate", evac:true,
     title:"Spider Bite (Black Widow / Brown Recluse)",
-    signs:["Black widow: muscle cramps, rigidity, severe abdominal pain, sweating within 1 hr","Brown recluse: painless initially then spreading necrotic ulcer over 24–72 h","Both: nausea, headache, low-grade fever"],
-    tx:["Clean wound with soap and water","Ice pack 10 min on / 10 min off for black widow","Diphenhydramine for local reaction if available","Mark lesion border + time","Evacuate — both can progress severely"],
-    avoid:"Do not squeeze wound. Do not apply heat to brown recluse bite." },
-  { id:"tick", cat:"BITES & STINGS", severity:"low", evac:false, img:"tick",
+    signs:["Black widow: muscle cramps, rigidity, severe abdominal pain within 1 hr","Brown recluse: painless then spreading necrotic ulcer 24–72 h","Both: nausea, headache, low-grade fever"],
+    tx:["Clean wound with soap and water","Ice pack 10 min on/off for black widow","Diphenhydramine for local reaction","Mark lesion border + time","Evacuate — both can progress severely"],
+    avoid:"Do not squeeze wound. No heat on brown recluse bite." },
+  { id:"tick", cat:"BITES & STINGS", severity:"low", evac:false,
     title:"Tick Removal & Disease Watch",
-    signs:["Tick found embedded in skin","Bull's-eye rash (Lyme) appearing hours–days later","Flu symptoms post-removal: fever, chills, muscle ache","Tick paralysis: ascending weakness (rare)"],
-    tx:["Fine-tipped tweezers: grasp as close to skin as possible","Pull straight out with steady even pressure — do not twist","Clean site with antiseptic","Save tick in sealed bag for identification","Watch for rash or flu symptoms 3–30 days post-bite","Seek care if rash appears or symptoms develop"],
-    avoid:"No Vaseline, nail polish, or heat to encourage tick removal." },
-  { id:"bee", cat:"BITES & STINGS", severity:"low", evac:false, img:"bee",
+    signs:["Tick found embedded","Bull's-eye rash (Lyme) hours–days later","Flu symptoms post-removal","Tick paralysis: ascending weakness (rare)"],
+    tx:["Tweezers: grasp close to skin, pull straight out steadily","Clean site with antiseptic","Save tick in sealed bag","Watch for rash/flu symptoms 3–30 days","Seek care if rash appears"],
+    avoid:"No Vaseline, nail polish, or heat." },
+  { id:"bee", cat:"BITES & STINGS", severity:"low", evac:false,
     title:"Bee / Wasp Sting",
-    signs:["Immediate burning pain at sting site","Local swelling, redness, itching","Watch for systemic signs: throat tightness, shortness of breath, dizziness"],
-    tx:["Scrape stinger out — do not pinch or squeeze","Ice pack to reduce swelling","Diphenhydramine 25–50 mg for local reaction if available","Monitor 30 min for anaphylaxis","If systemic signs: treat as anaphylaxis immediately"],
+    signs:["Immediate burning pain","Local swelling, redness, itching","Watch for: throat tightness, SOB, dizziness"],
+    tx:["Scrape stinger out — do not pinch","Ice pack to reduce swelling","Diphenhydramine 25–50 mg if available","Monitor 30 min for anaphylaxis","Systemic signs → treat as anaphylaxis"],
     avoid:"Do not pinch stinger — injects more venom." },
-  { id:"aquatic", cat:"BITES & STINGS", severity:"moderate", evac:false,
-    title:"Aquatic Puncture (Stingray / Catfish / Sea Urchin)",
-    signs:["Immediate intense pain at puncture site","Local swelling and redness","Stingray: barb may be embedded","Sea urchin: spines may break off under skin"],
-    tx:["Immerse in hot water (~45°C) for 30–90 min — denatures protein toxin","Remove visible spines/barbs with tweezers","Irrigate wound thoroughly after heat soak","Monitor for infection 24–48 h","Evac if barb deeply embedded or systemic reaction"],
-    avoid:"Do not break off sea urchin spines — may shatter deeper into tissue." },
-  { id:"scorpion", cat:"BITES & STINGS", severity:"moderate", evac:true, img:"scorpion",
-    title:"Scorpion Sting",
-    signs:["Immediate burning pain at sting site","Local numbness/tingling spreading from site","Systemic (bark scorpion): muscle twitching, drooling, abnormal eye movement","Children and elderly at highest risk"],
-    tx:["Clean wound; ice pack for local pain","Monitor closely for systemic symptoms 1–2 hr","Diphenhydramine for local allergic reaction if available","Any systemic signs — evacuate immediately","Children stung in scorpion-endemic areas — evacuate as precaution"],
-    avoid:"Do not apply tourniquet or attempt to suck out venom." },
-  { id:"burn_thermal", cat:"BURNS", severity:"moderate", evac:true, img:"burn",
-    title:"Thermal Burn (Fire / Scalding)",
-    signs:["Superficial (1st): red, dry, painful — no blisters","Partial thickness (2nd): blisters, very painful, wet appearance","Full thickness (3rd): white/brown/black, leathery — painless center","Inhalation: singed nasal hair, hoarse voice, soot in mouth"],
-    tx:["Cool with room-temp water 10–20 min — do NOT use ice","Remove jewelry/clothing from burned area if not adhered","Cover loosely with clean dry dressing","Partial thickness > palm size OR face/hands/genitals/joints — evacuate","Inhalation suspected — immediate evacuation","Do NOT pop blisters or apply butter/oils"],
-    avoid:"No ice, butter, toothpaste, or oil on burns." },
-  { id:"burn_sun", cat:"BURNS", severity:"low", evac:false,
-    title:"Sunburn",
-    signs:["Red, painful, warm skin","Blistering in severe cases","Sun poisoning: fever, chills, nausea, headache"],
-    tx:["Get out of sun; cover with lightweight clothing","Cool compresses to affected areas","Oral hydration — sun poisoning causes significant fluid loss","Ibuprofen for pain + inflammation if available","Aloe vera if available","Blistering + fever — treat as partial thickness burn and evacuate"],
-    avoid:"Do not pop blisters. Avoid further sun exposure." },
-  { id:"burn_chem", cat:"BURNS", severity:"high", evac:true,
-    title:"Chemical Burn",
-    signs:["Burning pain on skin contact","Skin discoloration — red, white, or brown","May worsen over minutes to hours","Eye involvement: tearing, severe pain, vision change"],
-    tx:["Irrigate immediately with large amounts of clean water — minimum 20 min","Remove contaminated clothing (use gloves)","Do NOT attempt to neutralize","Cover loosely with clean dressing after irrigation","Eyes involved: irrigate continuously; evacuate immediately","All significant chemical burns: evacuate"],
-    avoid:"Never neutralize chemicals on skin. No vinegar or baking soda on contact burns." },
+  { id:"burn_thermal", cat:"BURNS", severity:"moderate", evac:true,
+    title:"Thermal Burn",
+    signs:["Superficial (1st): red, dry, painful — no blisters","Partial thickness (2nd): blisters, very painful, wet","Full thickness (3rd): white/brown/black, leathery — painless","Inhalation: singed nasal hair, hoarse voice, soot"],
+    tx:["Cool with room-temp water 10–20 min — no ice","Remove jewelry/clothing if not adhered","Cover loosely with clean dry dressing","Partial thickness > palm size OR face/hands/genitals/joints → evac","Inhalation suspected → immediate evacuation","No blisters popped; no butter/oils"],
+    avoid:"No ice, butter, toothpaste, or oil." },
   { id:"sprain", cat:"FALLS & FRACTURES", severity:"low", evac:false,
     title:"Sprain / Strain",
-    signs:["Mechanism: twist, overstretch, or awkward landing","Pain, swelling, bruising around joint","Intact weight-bearing distinguishes sprain from fracture","No bony deformity or crepitus"],
-    tx:["RICE: Rest, Ice (20 min on/off), Compression wrap, Elevate","NSAIDs (ibuprofen) if available","Reassess weight-bearing after 20 min rest","Able to walk with minimal pain — may continue with support","Unable to weight-bear, deformity, or significant swelling — splint + evacuate"],
-    avoid:"Rule out fracture before assuming sprain. Do not tape over severe swelling." },
+    signs:["Mechanism: twist, overstretch","Pain, swelling, bruising around joint","Intact weight-bearing","No bony deformity or crepitus"],
+    tx:["RICE: Rest, Ice 20 min on/off, Compression, Elevate","NSAIDs if available","Reassess weight-bearing after 20 min rest","Able to walk with minimal pain — may continue with support","Unable to weight-bear, deformity → splint + evacuate"],
+    avoid:"Rule out fracture before assuming sprain." },
   { id:"fracture", cat:"FALLS & FRACTURES", severity:"moderate", evac:true,
     title:"Fracture / Suspected Fracture",
-    signs:["Significant force mechanism: fall, crush, impact","Point tenderness directly over bone","Deformity, angulation, or shortening","Crepitus (grinding sensation)","Unable to bear weight","Open fracture: bone visible or wound near break site"],
-    tx:["Splint in position found — immobilize joint above and below fracture","Check and document Circulation, Sensation & Motion (CSM) before and after splinting","Pad splint well; secure snugly but not tight","Open fracture: cover with moist sterile dressing, do not push bone back","Femur fracture: significant blood loss risk — treat proactively for shock","Evacuate all fractures"],
-    avoid:"Do not straighten angulated fracture unless distal neurovascular status is compromised and evacuation is delayed." },
-  { id:"dislocation", cat:"FALLS & FRACTURES", severity:"moderate", evac:true,
-    title:"Joint Dislocation",
-    signs:["Significant force or awkward fall mechanism","Visible deformity at joint","Severe pain with muscle spasm","Loss of normal range of motion","Check distal Circulation, Sensation & Motion (CSM) — nerve/vessel compromise is emergency"],
-    tx:["Check distal CSM (Circulation, Sensation & Motion) immediately and document","Shoulder: if trained, attempt reduction with traction-countertraction within 30 min","Patella: gentle extension if trained","All others: splint in position found","Post-reduction: recheck CSM, splint, evacuate","Do not attempt if fracture suspected or over 30 min old"],
-    avoid:"Do not reduce knee, hip, elbow, or ankle dislocations without specific training." },
-  { id:"headfall", cat:"FALLS & FRACTURES", severity:"high", evac:true,
-    title:"Fall from Height / High-Energy Trauma",
-    signs:["Fall > standing height or high-speed impact","Altered mental status (AMS) or loss of consciousness at any point","Midline spine pain or tenderness","Chest or abdominal tenderness","Multiple injuries common"],
-    tx:["Full spine precautions until cleared","Primary survey first — manage life threats","Assume multi-system injury until proven otherwise","Serial vitals every 5 min","Treat proactively for shock","Emergency evacuation"] },
+    signs:["Significant force mechanism","Point tenderness over bone","Deformity, angulation, or shortening","Crepitus","Unable to bear weight","Open fracture: bone visible"],
+    tx:["Splint in position found — immobilize joint above and below","Check CSM before and after splinting","Pad splint well; secure snugly","Open fracture: moist sterile dressing, do not push bone","Femur: treat proactively for shock","Evacuate all fractures"],
+    avoid:"Do not straighten unless distal NV compromised and evac delayed." },
   { id:"heat_ex", cat:"ENVIRONMENTAL", severity:"moderate", evac:true,
     title:"Heat Exhaustion",
-    signs:["Heavy sweating","Pale, cool, clammy skin","Weakness, dizziness, headache, nausea","Heart Rate > 100, Respiratory Rate elevated","Normal mental status — if altered mental status, treat as heat stroke"],
-    tx:["Move to cool shade immediately","Remove excess clothing","Lay supine, elevate legs","Cool wet cloths to neck, armpits, and groin","Oral rehydration — sips not gulps","Improving in 30 min with normal mental status — may monitor carefully","Any altered mental status — treat as heat stroke immediately"],
-    avoid:"Any altered mental status = heat stroke. Do not delay cooling." },
+    signs:["Heavy sweating","Pale, cool, clammy skin","Weakness, dizziness, headache, nausea","HR > 100","Normal mental status — AMS = heat stroke"],
+    tx:["Move to cool shade","Remove excess clothing","Supine, elevate legs","Cool wet cloths to neck, armpits, groin","Oral rehydration — sips","Improving in 30 min — may monitor carefully","Any AMS → treat as heat stroke immediately"],
+    avoid:"Any AMS = heat stroke. Do not delay cooling." },
   { id:"heat_stroke", cat:"ENVIRONMENTAL", severity:"high", evac:true,
     title:"Heat Stroke",
-    signs:["Hot skin — may be wet or dry","Altered mental status: confusion, combative, or unresponsive","Core temp > 40°C (104°F) if measurable","Rapid Heart Rate and Respiratory Rate","Nausea, vomiting, possible seizure"],
-    tx:["COOL FIRST, TRANSPORT SECOND — cooling is definitive treatment","Strip clothing; immerse in cold water or ice packs to neck/armpits/groin","Fan aggressively — evaporation dramatically speeds cooling","Continue active cooling during evacuation","Monitor airway — vomiting risk if altered mental status","Emergency evacuation — heat stroke is life-threatening"],
-    avoid:"Do not give oral fluids if altered mental status present — aspiration risk." },
+    signs:["Hot skin — wet or dry","AMS: confusion, combative, or unresponsive","Core temp > 40°C (104°F)","Rapid HR and RR","Nausea, vomiting, possible seizure"],
+    tx:["COOL FIRST, TRANSPORT SECOND","Strip clothing; ice packs to neck/armpits/groin","Fan aggressively — evaporation speeds cooling","Continue active cooling during evacuation","Monitor airway","Emergency evacuation"],
+    avoid:"No oral fluids if AMS — aspiration risk." },
   { id:"altitude", cat:"ENVIRONMENTAL", severity:"moderate", evac:true,
     title:"Altitude Illness (AMS / HACE / HAPE)",
-    signs:["Acute Mountain Sickness (AMS): headache + nausea/fatigue/dizziness above 2500 m","High Altitude Cerebral Edema (HACE): AMS symptoms + ataxia (stumbling) or severely worsening AMS","High Altitude Pulmonary Edema (HAPE): dry cough progressing to wet cough, shortness of breath at rest, crackles, blue lips"],
-    tx:["Acute Mountain Sickness: stop ascent, rest, hydrate, ibuprofen for headache","Do not ascend until symptom-free for 24 hours","HACE or HAPE: DESCEND IMMEDIATELY — minimum 300–1000 m","Supplemental oxygen if available","Gamow bag (portable hyperbaric chamber) if available","Dexamethasone (for HACE) or Nifedipine (for HAPE) if trained and available","HACE/HAPE: emergency evacuation"],
-    avoid:"Never ascend with Acute Mountain Sickness symptoms. Descent is the only definitive treatment." },
-  { id:"frostnip", cat:"ENVIRONMENTAL", severity:"low", evac:false,
-    title:"Frostnip",
-    signs:["Skin pale, cold, and numb","Tissue remains soft and pliable throughout","Rewarms quickly with body heat","No blisters form"],
-    tx:["Rewarm with body heat — axilla, abdomen, or warm hands of rescuer","Do NOT rub — mechanical damage to tissue","Cover and insulate well after rewarming","Prevent re-exposure","Monitor closely for progression to frostbite"] },
-  { id:"frostbite", cat:"ENVIRONMENTAL", severity:"high", evac:true, img:"frostbite",
+    signs:["AMS: headache + nausea/fatigue above 2500 m","HACE: AMS + ataxia or severely worsening AMS","HAPE: dry → wet cough, SOB at rest, crackles, blue lips"],
+    tx:["AMS: stop ascent, rest, hydrate, ibuprofen for headache","Do not ascend until symptom-free 24 h","HACE or HAPE: DESCEND IMMEDIATELY 300–1000 m","Supplemental O2 if available","Gamow bag if available","HACE/HAPE: emergency evacuation"],
+    avoid:"Never ascend with AMS. Descent is definitive treatment." },
+  { id:"hypothermia", cat:"ENVIRONMENTAL", severity:"high", evac:true,
+    title:"Hypothermia",
+    signs:["Mild: shivering, clumsy, poor judgment","Moderate: stops shivering, rigid, confused","Severe: no shivering, rigid, faint or absent pulse"],
+    tx:["Handle gently — no rough movement (VFib risk)","Remove wet clothing","Insulate: pad + bag + vapor barrier","Heat trunk only","Warm sweet fluids if alert and can swallow","Severe → horizontal evacuation"],
+    avoid:"No heat packs on extremities. No rough movement." },
+  { id:"frostbite", cat:"ENVIRONMENTAL", severity:"high", evac:true,
     title:"Frostbite",
-    signs:["Superficial: white/gray waxy skin, firm surface but soft underneath","Deep: white/gray skin, completely hard, wooden texture","Post-thaw: clear blisters (superficial) or bloody blisters (deep)","Complete numbness in affected area"],
-    tx:["Do NOT rewarm if any risk of refreezing — refrozen tissue causes far greater damage","Protect from trauma; pad and wrap loosely","Rewarm only with definitive shelter guaranteed: 40–42°C water bath for 15–30 min","Expect severe pain on rewarming — pain is a good sign","Ibuprofen if available","Do NOT walk on thawed feet","Evacuate all frostbite cases"],
-    avoid:"Never rewarm if refreezing is possible. No dry heat. No rubbing." },
+    signs:["Superficial: white/gray waxy skin, firm surface soft underneath","Deep: completely hard, wooden texture","Post-thaw: clear blisters (superficial) or bloody (deep)","Complete numbness"],
+    tx:["Do NOT rewarm if refreezing risk","Protect from trauma; pad and wrap loosely","Rewarm only with definitive shelter: 40–42°C water bath 15–30 min","Expect severe pain on rewarming — good sign","Ibuprofen if available","No walking on thawed feet","Evacuate all frostbite"],
+    avoid:"Never rewarm if refreezing possible. No dry heat. No rubbing." },
   { id:"dehydration", cat:"ENVIRONMENTAL", severity:"low", evac:false,
     title:"Dehydration",
-    signs:["Thirst, dry mouth and lips","Dark urine or decreased urine output","Headache, fatigue, decreased performance","Dizziness on standing","Skin tenting on pinch test","Severe: altered mental status, rapid Heart Rate, low blood pressure"],
-    tx:["Oral rehydration — water + electrolytes","500 mL over 30 min for mild dehydration","Sports drink, Oral Rehydration Solution (ORS), or dilute juice if available","Salty snack + water is an effective field solution","Severe (altered mental status or unable to drink) — IV fluids + evacuation","Monitor urine output and color to guide ongoing rehydration"] },
-  { id:"gi_illness", cat:"GI ILLNESS", severity:"moderate", evac:false,
-    title:"GI Illness / Gastroenteritis",
-    signs:["Nausea, vomiting, diarrhea","Cramping abdominal pain","Possible low-grade fever","Onset 1–6 h: likely toxin; 6–24 h: likely bacterial"],
-    tx:["Oral rehydration — small frequent sips of water or Oral Rehydration Solution (ORS)","BRAT diet when tolerated: Banana, Rice, Applesauce, Toast","Ondansetron (Zofran) for vomiting if available","Rest and monitor vitals","Evacuate if: cannot keep fluids down 24 hours, blood in stool, high fever, severe pain, or altered mental status"],
-    avoid:"Do not give anti-diarrheals if bloody diarrhea or high fever present." },
-  { id:"giardia", cat:"GI ILLNESS", severity:"moderate", evac:true,
-    title:"Giardia / Waterborne Illness",
-    signs:["Onset 1–3 weeks after exposure to untreated water","Explosive, watery, foul-smelling diarrhea","Bloating, cramping, gas","No fever typically","Prolonged course without treatment"],
-    tx:["Aggressive oral rehydration throughout","Treat all water going forward: boil, filter, or chemically treat","Requires prescription antibiotics (metronidazole or tinidazole) — seek care","Evacuate for treatment","Preventable: treat all backcountry water regardless of source appearance"] },
-  { id:"eye_foreign", cat:"EYE INJURIES", severity:"low", evac:false,
-    title:"Foreign Body in Eye",
-    signs:["Gritty or scratchy sensation in eye","Tearing, redness, photophobia","Visible foreign body on conjunctiva","Pain worsened with blinking"],
-    tx:["Do NOT rub eye","Irrigate with clean water or saline — tilt head, flush from inner to outer corner","Lift upper lid and inspect; use moist cotton swab for visible loose debris","If pain persists after irrigation — patch, protect, evacuate"],
-    avoid:"Never attempt to remove embedded objects from the cornea or globe." },
-  { id:"eye_trauma", cat:"EYE INJURIES", severity:"high", evac:true,
-    title:"Eye Trauma / Open Globe",
-    signs:["Mechanism: stick, branch, sharp object, or projectile","Visible laceration on eye or irregular pupil shape","Prolapsing tissue from globe","Sudden vision loss","Severe pain or unexpected painlessness"],
-    tx:["Do NOT touch, irrigate, or apply any pressure to the globe","Place rigid eye shield over eye — no direct contact","Tape shield in place; do not compress","Cover other eye to reduce consensual movement","Keep patient calm — avoid Valsalva","Emergency evacuation"],
-    avoid:"No pressure patching. No irrigation of open globe. No eye drops." },
-  { id:"asthma", cat:"RESPIRATORY", severity:"moderate", evac:true,
-    title:"Asthma Attack / Bronchospasm",
-    signs:["Expiratory wheeze or silent chest (critical — no air movement)","Shortness of breath, chest tightness, difficulty breathing","Use of accessory muscles (neck, shoulder muscles visible with each breath)","Cyanosis (blue lips/fingertips) in severe cases","Triggers: cold air, exertion, allergen, smoke"],
-    tx:["Sit upright — do not lay patient down","Albuterol inhaler (MDI): 4–8 puffs via spacer every 20 min ×3 if available","Pursed-lip breathing with calm reassurance","Keep warm — cold air worsens bronchospasm","Mild improvement in 20 min in known asthmatic — may monitor","No improvement, silent chest, or cyanosis — emergency evacuation"] },
-  { id:"plant_contact", cat:"SKIN & ALLERGIC", severity:"low", evac:false, img:"rash",
-    title:"Contact Dermatitis (Poison Ivy / Oak / Sumac)",
-    signs:["Linear streaks of intense itching redness along contact lines","Vesicles and blisters in streaks or patches","Onset 12–72 h after plant contact","Fluid from blisters does NOT spread the rash"],
-    tx:["Wash skin with soap and water ASAP — within 10 min is most effective","Rinse very thoroughly; wash all clothing and gear","Hydrocortisone cream to affected areas if available","Diphenhydramine orally for itch","Cool compresses for relief","Evac if: face or eye involvement, widespread rash, or severe swelling"],
-    avoid:"Urushiol oil on gear can re-expose. Wash everything." },
-  { id:"allergic_rx", cat:"SKIN & ALLERGIC", severity:"moderate", evac:true,
-    title:"Allergic Reaction (Non-Anaphylactic)",
-    signs:["Hives (urticaria) — raised, itchy welts on skin","Flushing and itching without airway or blood pressure symptoms","No wheezing, throat tightness, or hypotension","May progress to anaphylaxis — monitor closely"],
-    tx:["Diphenhydramine 25–50 mg orally if available","Remove suspected allergen (food, plant, insect product)","Monitor every 15 min for 1 hour for systemic progression","Keep epinephrine immediately accessible","If worsening or any systemic signs develop — treat as anaphylaxis immediately"] },
-  { id:"blister", cat:"MUSCULOSKELETAL", severity:"low", evac:false,
-    title:"Blister Management",
-    signs:["Friction hotspot progressing to fluid-filled blister","Pain with continued activity","Risk of rupture and infection if untreated"],
-    tx:["Donut pad (moleskin or foam) around the blister — NOT directly over it","Large, tense blister: sterilize needle, drain at edge only, do NOT remove blister roof","Apply antibiotic ointment + non-stick dressing","Change dressing daily; watch for infection signs","Ruptured blister: trim loose skin carefully, treat as open wound"] },
-  { id:"overuse", cat:"MUSCULOSKELETAL", severity:"low", evac:false,
-    title:"Overuse / Tendinopathy",
-    signs:["Gradual onset pain that increases with activity","Morning stiffness or stiffness after rest","Point tenderness along tendon","No acute mechanism of injury"],
-    tx:["Rest from aggravating activity","Ice 20 min on/off ×3 during acute phase","Ibuprofen if available","Gentle stretching and eccentric loading if tolerated","Tape or brace for continued activity if necessary","Evac if: unable to weight-bear, severe pain, or swelling suggesting rupture"] },
+    signs:["Thirst, dry mouth","Dark urine or decreased output","Headache, fatigue","Dizziness on standing","Severe: AMS, rapid HR, low BP"],
+    tx:["Oral rehydration — water + electrolytes","500 mL over 30 min for mild","Sports drink, ORS, or dilute juice","Salty snack + water effective field solution","Severe (AMS or can't drink) → IV + evacuation"],
+    avoid:"" },
   { id:"seizure", cat:"NEUROLOGICAL", severity:"high", evac:true,
     title:"Seizure",
-    signs:["Tonic-clonic: whole body stiffening followed by jerking","Post-ictal phase: prolonged confusion and fatigue after episode","May bite tongue or be incontinent","First seizure always requires medical evaluation"],
-    tx:["Protect from injury — clear area of hazards; do NOT restrain patient","Turn on side (recovery position) during and after","Do NOT put anything in mouth during seizure","Time the seizure — > 5 min = status epilepticus, emergency","After: recovery position, monitor airway, assess Level of Responsiveness","First seizure, prolonged seizure, or post-ictal altered mental status — evacuate"] },
+    signs:["Tonic-clonic: whole body stiffening then jerking","Post-ictal: prolonged confusion and fatigue","May bite tongue or be incontinent","First seizure always requires eval"],
+    tx:["Protect from injury — clear area; do NOT restrain","Turn on side (recovery position)","Nothing in mouth during seizure","Time the seizure — > 5 min = status epilepticus, emergency","After: recovery position, monitor airway, assess LOR","First seizure, prolonged, or post-ictal AMS → evacuate"],
+    avoid:"Never put anything in mouth during seizure." },
   { id:"diabetic", cat:"NEUROLOGICAL", severity:"moderate", evac:true,
     title:"Diabetic Emergency / Hypoglycemia",
-    signs:["Sudden onset: shaky, sweaty, pale, anxious","Patient may self-identify early hypoglycemia","Severe: confusion, unresponsive, or seizure","History of diabetes; may have missed meal or over-exerted"],
-    tx:["Conscious + able to swallow: 15–20 g fast sugar (glucose tabs, juice, candy, honey)","Recheck in 15 min — repeat if no improvement","Follow with complex carb + protein snack once improving","Unconscious: do NOT give oral fluids — aspiration risk","Recovery position; monitor airway","Honey or glucose gel inside cheek if barely responsive","Evacuate if: unknown cause, unresponsive, or no improvement after treatment"] },
-  { id:"infection", cat:"WOUND & INFECTION", severity:"moderate", evac:true,
+    signs:["Sudden: shaky, sweaty, pale, anxious","May self-identify early hypoglycemia","Severe: confusion, unresponsive, seizure","History of diabetes; missed meal or over-exerted"],
+    tx:["Conscious + can swallow: 15–20 g fast sugar","Recheck in 15 min; repeat if no improvement","Follow with complex carb + protein snack","Unconscious: do NOT give oral fluids","Recovery position; honey/gel inside cheek if barely responsive","Evacuate if unknown cause, unresponsive, or no improvement"],
+    avoid:"No oral fluids if unconscious — aspiration risk." },
+  { id:"asthma", cat:"RESPIRATORY", severity:"moderate", evac:true,
+    title:"Asthma / Bronchospasm",
+    signs:["Expiratory wheeze or silent chest (critical)","SOB, chest tightness","Use of accessory muscles","Cyanosis in severe cases","Triggers: cold air, exertion, allergen"],
+    tx:["Sit upright","Albuterol MDI: 4–8 puffs via spacer every 20 min ×3","Pursed-lip breathing with reassurance","Keep warm","Mild improvement in 20 min in known asthmatic — may monitor","No improvement, silent chest, or cyanosis → emergency evac"],
+    avoid:"" },
+  { id:"wound_inf", cat:"WOUND & INFECTION", severity:"moderate", evac:true,
     title:"Wound Infection / Cellulitis",
-    signs:["Wound redness spreading beyond wound margins","Warmth, swelling, increasing pain after initial improvement","Purulent discharge or foul odor","Streaking redness tracking up limb (lymphangitis)","Fever, chills (systemic spread)"],
-    tx:["Open wound to allow drainage if fluctuant (abscess)","Irrigate aggressively with clean water at high pressure","Warm soaks 3–4× daily if water available","Change dressings twice daily","Antibiotics required — evacuate for prescription","Spreading cellulitis or systemic symptoms — urgent evacuation","Lymphangitic streaking = emergency evacuation"] },
-  { id:"impalement", cat:"WOUND & INFECTION", severity:"high", evac:true,
-    title:"Impalement / Embedded Object",
-    signs:["Object penetrating skin and remaining in place","May have entered body cavity (chest, abdomen)","Significant risk of major vessel or organ injury","Minimal external bleeding does not rule out internal injury"],
-    tx:["Do NOT remove impaled object — it may be tamponading a vessel","Stabilize object in place with bulky dressings on both sides","Cut object to manageable length if necessary for transport","Monitor for signs of internal bleeding / shock","Cover any chest wound with occlusive dressing (3-sided tape)","Emergency evacuation"] },
+    signs:["Redness spreading beyond wound margins","Warmth, swelling, increasing pain","Purulent discharge or foul odor","Streaking redness tracking up limb (lymphangitis)","Fever, chills"],
+    tx:["Open wound to allow drainage if fluctuant","Irrigate aggressively","Warm soaks 3–4× daily","Change dressings twice daily","Antibiotics required → evacuate","Spreading cellulitis or systemic symptoms → urgent evac","Lymphangitic streaking = emergency evacuation"],
+    avoid:"" },
 ];
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   EVAC TRIGGERS
-══════════════════════════════════════════════════════════════════════════════ */
 const EVAC_TRIGGERS = {
-  emergency: [
+  emergency:[
     "Uncontrolled airway / respiratory distress",
     "Uncontrolled severe bleeding / shock",
     "Declining or altered mental status",
-    "Suspected spinal injury with neurological deficits",
+    "Suspected spinal injury with neuro deficits",
     "Chest trauma with breathing compromise",
-    "Anaphylaxis after epinephrine injection",
+    "Anaphylaxis after epinephrine",
     "Severe hypothermia",
-    "Open fracture / joint dislocation (unreduced)",
+    "Open fracture / unreduced dislocation",
     "Lightning strike",
-    "Abdominal evisceration or impalement",
+    "Impalement or evisceration",
   ],
-  urgent: [
+  urgent:[
     "Stable vitals but high-energy mechanism",
-    "Spreading cellulitis or red streaking up limb (lymphangitis)",
+    "Spreading cellulitis / lymphangitic streaking",
     "Suspected femur fracture",
     "Eye injury / sudden vision loss",
-    "Significant altered mental status without clear cause",
-    "Snakebite (all cases)",
+    "Significant AMS without clear cause",
+    "Snakebite — all cases",
   ],
-  monitor: [
-    "Reduced dislocation, circulation/sensation/motion intact, ambulating",
+  monitor:[
+    "Reduced dislocation, CSM intact, ambulating",
     "Mild hypothermia, actively rewarming",
-    "Resolved anaphylaxis, 2+ hours post-epinephrine, no recurrence",
+    "Resolved anaphylaxis, 2+ h post-epi, no recurrence",
     "Minor laceration, wound clean, patient stable",
-    "Ankle sprain, able to weight-bear, no deformity",
+    "Ankle sprain, weight-bearing, no deformity",
   ],
 };
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   SVG ILLUSTRATIONS
-══════════════════════════════════════════════════════════════════════════════ */
-function AilmentIllustration({ id }) {
-  const svgs = {
-    snake: (
-      <svg viewBox="0 0 160 80" width="160" height="80" aria-hidden="true">
-        <path d="M20 65 Q30 30 55 28 Q80 26 85 40 Q90 54 70 56 Q55 58 53 48 Q51 38 62 36 Q73 34 74 42" stroke={C.warn} strokeWidth="5" fill="none" strokeLinecap="round"/>
-        <ellipse cx="20" cy="67" rx="9" ry="5.5" fill={C.warn}/>
-        <path d="M14 67 L6 63 M14 67 L6 71" stroke={C.danger} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-        <rect x="108" y="28" width="40" height="26" rx="5" fill="#fdecea" stroke={C.border} strokeWidth="1"/>
-        <circle cx="120" cy="41" r="2.5" fill={C.danger} opacity="0.9"/>
-        <circle cx="130" cy="41" r="2.5" fill={C.danger} opacity="0.9"/>
-        <path d="M120 43 L120 50 M130 43 L130 50" stroke={C.danger} strokeWidth="1" strokeDasharray="2,2" opacity="0.6"/>
-        <text x="128" y="62" textAnchor="middle" fontSize="8" fill={C.textFaint} fontFamily={mono}>fang marks</text>
-      </svg>
-    ),
-    spider: (
-      <svg viewBox="0 0 160 80" aria-hidden="true" width="160" height="80">
-        <ellipse cx="55" cy="46" rx="11" ry="8" fill="#3a3a3a"/>
-        <ellipse cx="55" cy="34" rx="8" ry="7" fill="#4a4a4a"/>
-        <circle cx="52" cy="32" r="1.5" fill="white" opacity="0.8"/>
-        <circle cx="58" cy="32" r="1.5" fill="white" opacity="0.8"/>
-        {[[-1,-1],[-1,0],[-1,1],[1,-1],[1,0],[1,1]].map(([sx,si],i) => (
-          <path key={i} d={`M${55+sx*11} ${40+si*5} Q${55+sx*24} ${38+si*6} ${55+sx*30} ${36+si*4}`} stroke="#2a2a2a" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-        ))}
-        <rect x="100" y="28" width="48" height="28" rx="5" fill="#fdecea" stroke={C.border} strokeWidth="1"/>
-        <circle cx="116" cy="42" r="4" fill={C.danger} opacity="0.25"/>
-        <circle cx="116" cy="42" r="2" fill={C.danger} opacity="0.7"/>
-        <circle cx="130" cy="42" r="4" fill={C.danger} opacity="0.25"/>
-        <circle cx="130" cy="42" r="2" fill={C.danger} opacity="0.7"/>
-        <text x="124" y="64" textAnchor="middle" fontSize="8" fill={C.textFaint} fontFamily={mono}>bite site</text>
-      </svg>
-    ),
-    tick: (
-      <svg viewBox="0 0 160 80" aria-hidden="true" width="160" height="80">
-        <path d="M10 62 Q50 52 90 55 Q120 57 150 50" stroke={C.border} strokeWidth="2" fill="none"/>
-        <path d="M10 62 Q50 52 90 55 Q120 57 150 50 L150 80 L10 80 Z" fill="#fdecea" opacity="0.4"/>
-        <ellipse cx="75" cy="53" rx="13" ry="10" fill="#2c2c2c"/>
-        <ellipse cx="75" cy="45" rx="8" ry="6" fill="#3d3d3d"/>
-        {[[-12,-4],[-14,0],[-12,4],[12,-4],[14,0],[12,4]].map(([dx,dy],i)=>(
-          <path key={i} d={`M${75+dx*0.5} ${45+dy*0.5} Q${75+dx} ${45+dy} ${75+dx*1.4} ${44+dy*1.2}`} stroke="#1a1a1a" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-        ))}
-        <path d="M75 63 L75 68" stroke="#2c2c2c" strokeWidth="3" strokeLinecap="round"/>
-        <circle cx="120" cy="42" r="14" fill="none" stroke={C.danger} strokeWidth="1.5" opacity="0.5"/>
-        <circle cx="120" cy="42" r="8" fill="#fdecea" stroke={C.danger} strokeWidth="1" opacity="0.6"/>
-        <circle cx="120" cy="42" r="2.5" fill={C.danger} opacity="0.8"/>
-        <text x="120" y="62" textAnchor="middle" fontSize="7" fill={C.textFaint} fontFamily={mono}>bulls-eye</text>
-      </svg>
-    ),
-    bee: (
-      <svg viewBox="0 0 120 80" aria-hidden="true" width="120" height="80">
-        <ellipse cx="50" cy="24" rx="16" ry="7" fill="#e8f5e5" stroke={C.border} strokeWidth="1" opacity="0.85"/>
-        <ellipse cx="63" cy="24" rx="16" ry="7" fill="#e8f5e5" stroke={C.border} strokeWidth="1" opacity="0.85"/>
-        <ellipse cx="56" cy="40" rx="11" ry="15" fill="#c45000"/>
-        <rect x="45" y="33" width="22" height="4" fill="#1a1a1a" rx="1"/>
-        <rect x="45" y="41" width="22" height="4" fill="#1a1a1a" rx="1"/>
-        <rect x="45" y="49" width="22" height="4" fill="#1a1a1a" rx="1"/>
-        <circle cx="56" cy="22" r="7" fill="#c45000"/>
-        <path d="M53 16 Q48 10 46 6" stroke="#1a1a1a" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-        <path d="M59 16 Q64 10 66 6" stroke="#1a1a1a" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-        <circle cx="44" cy="5" r="2" fill="#1a1a1a"/>
-        <circle cx="68" cy="5" r="2" fill="#1a1a1a"/>
-        <path d="M56 55 L56 64" stroke="#1a1a1a" strokeWidth="2.5" strokeLinecap="round"/>
-        <path d="M56 64 L52 70 M56 64 L60 70" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round"/>
-        <rect x="85" y="38" width="28" height="20" rx="4" fill="#fff3e0" stroke={C.border} strokeWidth="1"/>
-        <circle cx="99" cy="48" r="6" fill={C.warn} opacity="0.2"/>
-        <circle cx="99" cy="48" r="2.5" fill={C.warn} opacity="0.7"/>
-      </svg>
-    ),
-    burn: (
-      <svg viewBox="0 0 160 80" aria-hidden="true" width="160" height="80">
-        <path d="M32 70 Q22 45 38 30 Q30 42 46 32 Q38 20 52 8 Q56 24 46 32 Q62 18 58 34 Q70 20 66 36 Q78 22 70 42 Q76 55 58 70 Z" fill={C.warn} opacity="0.85"/>
-        <path d="M38 70 Q30 52 42 40 Q38 46 48 40 Q46 30 54 22 Q56 34 50 40 Q58 30 58 42 Q64 36 62 50 Q66 58 52 70 Z" fill="#fef3e0" opacity="0.8"/>
-        <rect x="94" y="14" width="52" height="52" rx="6" fill="white" stroke={C.border} strokeWidth="1"/>
-        <rect x="94" y="14" width="52" height="17" rx="0" fill="#fdecea"/>
-        <text x="120" y="27" textAnchor="middle" fontSize="9" fill={C.danger} fontFamily={mono} fontWeight="700">3rd°</text>
-        <rect x="94" y="31" width="52" height="17" fill="#fff3e0"/>
-        <text x="120" y="44" textAnchor="middle" fontSize="9" fill={C.warn} fontFamily={mono} fontWeight="700">2nd°</text>
-        <rect x="94" y="48" width="52" height="11" fill="#e6f4e2"/>
-        <text x="120" y="57" textAnchor="middle" fontSize="9" fill={C.accent} fontFamily={mono} fontWeight="700">1st°</text>
-        <rect x="94" y="59" width="52" height="7" rx="0" fill="#edf0ea"/>
-        <text x="120" y="65" textAnchor="middle" fontSize="7" fill={C.textFaint} fontFamily={mono}>skin</text>
-      </svg>
-    ),
-    frostbite: (
-      <svg viewBox="0 0 160 80" aria-hidden="true" width="160" height="80">
-        <path d="M22 72 Q20 52 24 38 Q28 26 36 26 Q42 26 42 34 L42 24 Q42 16 48 16 Q54 16 54 24 L54 18 Q54 10 60 10 Q66 10 66 18 L66 22 Q66 14 72 14 Q78 14 78 24 L78 38 Q85 30 90 32 Q97 36 90 46 L78 60 Q76 66 72 72 Z" fill={C.blueLight} stroke={C.blue} strokeWidth="1.5"/>
-        <rect x="39" y="16" width="8" height="18" rx="4" fill="#c8d8e8" opacity="0.8"/>
-        <rect x="51" y="10" width="8" height="18" rx="4" fill="#b8c8d8" opacity="0.8"/>
-        <rect x="63" y="14" width="8" height="16" rx="4" fill="#c8d8e8" opacity="0.8"/>
-        <g transform="translate(122,40)">
-          <line x1="-13" y1="0" x2="13" y2="0" stroke={C.blue} strokeWidth="2"/>
-          <line x1="0" y1="-13" x2="0" y2="13" stroke={C.blue} strokeWidth="2"/>
-          <line x1="-9" y1="-9" x2="9" y2="9" stroke={C.blue} strokeWidth="2"/>
-          <line x1="9" y1="-9" x2="-9" y2="9" stroke={C.blue} strokeWidth="2"/>
-          <circle cx="0" cy="-13" r="2.5" fill={C.blue}/>
-          <circle cx="0" cy="13" r="2.5" fill={C.blue}/>
-          <circle cx="-13" cy="0" r="2.5" fill={C.blue}/>
-          <circle cx="13" cy="0" r="2.5" fill={C.blue}/>
-        </g>
-      </svg>
-    ),
-    rash: (
-      <svg viewBox="0 0 160 80" aria-hidden="true" width="160" height="80">
-        <path d="M18 58 Q40 44 80 46 Q120 48 142 40 L142 72 Q120 72 80 72 Q40 72 18 72 Z" fill="#fdecea" stroke={C.border} strokeWidth="1"/>
-        {[[30,52,7],[50,46,5],[68,49,8],[88,44,6],[106,47,7],[124,42,5],[40,60,5],[62,58,7],[85,56,6],[108,55,5],[130,52,4]].map(([x,y,r],i)=>(
-          <circle key={i} cx={x} cy={y} r={r} fill={C.danger} opacity="0.3" stroke={C.danger} strokeWidth="0.5"/>
-        ))}
-        <text x="80" y="76" textAnchor="middle" fontSize="8" fill={C.textFaint} fontFamily={mono}>urticaria / contact dermatitis</text>
-      </svg>
-    ),
-    scorpion: (
-      <svg viewBox="0 0 140 80" aria-hidden="true" width="140" height="80">
-        <path d="M72 58 Q80 45 90 42 Q100 39 106 30 Q112 20 106 13 Q103 8 108 5" stroke={C.textDim} strokeWidth="4" fill="none" strokeLinecap="round"/>
-        <path d="M108 5 L114 1 L112 8" fill={C.warn} stroke={C.warn} strokeWidth="1"/>
-        <ellipse cx="55" cy="55" rx="20" ry="11" fill={C.textDim}/>
-        <ellipse cx="44" cy="44" rx="14" ry="11" fill={C.textDim}/>
-        {[[-1,-1],[-1,0],[-1,1],[1,-1],[1,0],[1,1]].map(([sx,sy],i)=>(
-          <path key={i} d={`M${44+sx*14} ${44+sy*4} Q${44+sx*26} ${44+sy*6} ${44+sx*32} ${43+sy*4}`} stroke="#2c2c2c" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-        ))}
-        <path d="M36 42 Q24 36 18 30 Q15 27 19 24 Q23 21 26 26" stroke={C.textDim} strokeWidth="3" fill="none" strokeLinecap="round"/>
-        <path d="M26 26 Q24 19 30 20 Q36 21 32 27 Z" fill={C.textDim}/>
-        <path d="M36 48 Q22 48 16 44 Q11 40 14 35 Q17 30 22 35" stroke={C.textDim} strokeWidth="3" fill="none" strokeLinecap="round"/>
-      </svg>
-    ),
-  };
-  const svg = svgs[id];
-  if (!svg) return null;
+const SEARCH_SYNONYMS = {
+  snake:["venom","fang","rattlesnake","copperhead","bite"],
+  spider:["black widow","brown recluse","necrosis"],
+  tick:["lyme","bulls-eye","bullseye","paralysis","removal"],
+  bee:["wasp","stinger","sting"],
+  burn:["fire","scald","blister","thermal","sunburn"],
+  frostbite:["frost","frozen","cold injury","frostnip"],
+  hypothermia:["cold","shiver","exposure","freezing","rigid"],
+  heat:["hot","sweat","hyperthermia","sun","stroke","exhaustion"],
+  altitude:["mountain","AMS","HACE","HAPE","elevation","hypoxia"],
+  seizure:["convulsion","epilepsy","tremor","tonic","ictal"],
+  fracture:["break","broken","bone","crack","crepitus"],
+  sprain:["twist","roll","ankle","strain","RICE"],
+  shock:["hypoperfusion","low bp","pale","clammy","perfusion"],
+  bleeding:["hemorrhage","blood","wound","laceration","cut"],
+  infection:["cellulitis","abscess","pus","fever","streaks"],
+  asthma:["wheeze","bronchospasm","inhaler","MDI"],
+  allergic:["allergy","hives","urticaria","itching","anaphylaxis"],
+  head:["concussion","TBI","skull","brain","LOC","amnesia"],
+  diabetic:["hypoglycemia","sugar","glucose","insulin","shaky"],
+  dehydration:["thirst","dry","fluid","dark urine","electrolyte"],
+};
+
+function fuzzyScoreAilment(a, query) {
+  if (!query) return 1;
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const titleLower = a.title.toLowerCase();
+  const bodyText = [a.cat,...(a.signs||[]),...(a.tx||[])].join(" ").toLowerCase();
+  let score = 0;
+  for (const word of words) {
+    const syns = Object.entries(SEARCH_SYNONYMS)
+      .filter(([k])=>k.includes(word)||word.includes(k))
+      .flatMap(([,v])=>v);
+    if (titleLower.includes(word)) score+=10;
+    else if (syns.some(s=>titleLower.includes(s))) score+=6;
+    else if (bodyText.includes(word)) score+=3;
+    else if (syns.some(s=>bodyText.includes(s))) score+=2;
+  }
+  return score;
+}
+
+/* PATIENT ASSESSMENT TRIANGLE — JPEG image with invisible tap overlays per band */
+function PatientAssessmentTriangle({ activeStep, onStepClick }) {
+  // The JPEG (triangle.jpeg) has the exact handbook pyramid.
+  // SVG overlay uses a 100×100 viewBox (% coordinates) mapped over the image.
+  // Triangle tip ≈ (50, 6.4%), base ≈ y 85.9%, half-width at base ≈ 46.3%.
+  // 7 equal bands, band 2 split into 3 sub-columns.
+
+  const activeFill = "rgba(80,80,80,0.28)";
+
+  // Precomputed trapezoid points (% coords) for each band
+  const bands = [
+    { step:0, pts:"50,6.4 50,6.4 56.6,17.75 43.4,17.75" },
+    { step:1, pts:"43.4,17.75 56.6,17.75 63.2,29.1 36.8,29.1" },
+    { step:5, pts:"30.2,40.45 69.8,40.45 76.4,51.8 23.6,51.8" },
+    { step:6, pts:"23.6,51.8 76.4,51.8 83.0,63.15 17.0,63.15" },
+    { step:7, pts:"17.0,63.15 83.0,63.15 89.6,74.5 10.4,74.5" },
+    { step:8, pts:"10.4,74.5 89.6,74.5 96.2,85.85 3.8,85.85" },
+  ];
+  // Band 2 sub-columns
+  const subBands = [
+    { step:2, pts:"36.8,29.1 45.6,29.1 43.4,40.45 30.2,40.45" },
+    { step:3, pts:"45.6,29.1 54.4,29.1 56.6,40.45 43.4,40.45" },
+    { step:4, pts:"54.4,29.1 63.2,29.1 69.8,40.45 56.6,40.45" },
+  ];
+
   return (
-    <div style={{ background: C.raised, borderRadius: "6px", padding: "10px 12px", marginBottom: "12px", display: "flex", justifyContent: "center", alignItems: "center" }}>
-      {svg}
+    <div style={{position:"relative",maxWidth:340,margin:"0 auto",borderRadius:"6px",overflow:"hidden"}}>
+      <img src="/triangle.jpeg" alt="Patient Assessment System"
+        style={{width:"100%",display:"block"}} />
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+        style={{position:"absolute",top:0,left:0,width:"100%",height:"100%"}}>
+        {[...bands,...subBands].map(({step,pts})=>(
+          <polygon key={step} points={pts}
+            fill={activeStep===step ? activeFill : "transparent"}
+            onClick={()=>onStepClick(step)}
+            style={{cursor:"pointer"}} />
+        ))}
+      </svg>
     </div>
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   LOG UTILITIES
-══════════════════════════════════════════════════════════════════════════════ */
-function makeLog() {
-  const now = new Date();
-  return {
-    id: `log_${now.getTime()}`,
-    name: "",
-    datetime: now.toISOString(),
-    location: { lat: null, lng: null, display: "" },
-    data: { ssu:{}, resp:{}, abc:{}, sample:{}, exam:{}, evac:{} },
-    vitals: [],
-    checks: {},
-    notes: "",
-  };
+/* LOCATION */
+async function resolveLocation(lat,lng,deviceAlt) {
+  try {
+    const [eR,gR]=await Promise.all([
+      fetch("https://api.open-meteo.com/v1/elevation?latitude="+lat+"&longitude="+lng),
+      fetch("https://nominatim.openstreetmap.org/reverse?lat="+lat+"&lon="+lng+"&format=json",{headers:{"User-Agent":"FieldMed-WFR/1.0"}}),
+    ]);
+    const eD=await eR.json(), gD=await gR.json();
+    const elevM=eD?.elevation?.[0]??deviceAlt??null;
+    const elevStr=elevM!=null?" · "+Math.round(elevM)+"m elev.":"";
+    const addr=gD?.address||{};
+    const place=[addr.city||addr.town||addr.village||addr.county,addr.state].filter(Boolean).join(", ");
+    const coordStr=Math.abs(lat).toFixed(4)+"°"+(lat>=0?"N":"S")+", "+Math.abs(lng).toFixed(4)+"°"+(lng>=0?"E":"W");
+    return place?place+elevStr+"  ("+coordStr+")":coordStr+elevStr;
+  } catch { return lat.toFixed(4)+", "+lng.toFixed(4); }
 }
 
 function fmtDateTime(iso) {
-  try {
-    return new Date(iso).toLocaleString([], { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
-  } catch { return iso; }
+  try{return new Date(iso).toLocaleString([],{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"});}catch{return iso;}
+}
+function nowTime(){return new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});}
+
+/* LOG FACTORY */
+function makeLog(){
+  const now=new Date();
+  return {
+    id:"log_"+now.getTime(), name:"", datetime:now.toISOString(),
+    location:{lat:null,lng:null,display:""},
+    checks:{}, fields:{}, vitals:[], notes:"",
+    rescueLocation:{landmark:"",trail:"",terrain:"",lzAvailable:"",lzNotes:"",lookFor:""},
+  };
 }
 
-function exportText(log) {
-  const lines = [
-    "FIELD MED — PATIENT ENCOUNTER LOG",
-    "====================================",
-    `Log      : ${log.name || "(unnamed)"}`,
-    `Date/Time: ${fmtDateTime(log.datetime)}`,
-    `Location : ${log.location.display || "Not recorded"}`,
-    "",
-  ];
-  const sectionLabels = { ssu:"Scene Size-Up", resp:"Responsiveness", abc:"ABCs + Bleeding", sample:"SAMPLE History", exam:"Head-to-Toe Exam", evac:"Evac Decision" };
-  Object.entries(sectionLabels).forEach(([sec, title]) => {
-    const fields = PAS_FIELDS[sec] || [];
-    const data = log.data[sec] || {};
-    const entries = fields.filter(f => data[f.key] && data[f.key] !== "—");
-    if (!entries.length) return;
-    lines.push(`── ${title} ──`);
-    entries.forEach(f => lines.push(`  ${f.label}: ${data[f.key]}`));
-    lines.push("");
-  });
-  if (log.vitals.length) {
-    lines.push("── Vitals Log ──");
-    log.vitals.forEach(v => {
-      const parts = VITAL_FIELDS.map(f => `${f.label}:${v[f.key]||"—"}`).join("  ");
-      lines.push(`  ${v.time} | ${parts}`);
-    });
-    lines.push("");
+/* REPORT GENERATORS */
+function generateVerbalReport(log){
+  const f=(stepId,key)=>(log.fields[stepId]||{})[key]||"";
+  const lines=[];
+  const push=l=>lines.push(l);
+  const sec=t=>{push("");push(t);push("─".repeat(t.length));};
+  push("📞 VERBAL SOAP REPORT");
+  push("━".repeat(42));
+  sec("SUBJECTIVE — Who, What, Where");
+  const name=log.name||"[caller name]";
+  push('  "This is '+name+' with a patient report."');
+  if(log.location.display) push('  "We are currently located at: '+log.location.display+'."');
+  const age=f("history","age")||"[age/sex]";
+  const chief=f("history","signs")||f("initial","notes")||"[chief complaint]";
+  push('  "I have a '+age+' patient whose chief complaint is: '+chief+'."');
+  const moi=f("scene","moi");
+  if(moi) push('  "The MOI/HPI is: '+moi+'."');
+  const lor=f("initial","lor");
+  if(lor) push('  "The patient is currently: '+lor+'."');
+  sec("OBJECTIVE — Head to Toe, Vitals, Hx");
+  const examParts=[
+    f("headtoe","head")&&"Head: "+f("headtoe","head"),
+    f("headtoe","neck")&&"Neck: "+f("headtoe","neck"),
+    f("headtoe","chest")&&"Chest: "+f("headtoe","chest"),
+    f("headtoe","abdomen")&&"Abdomen: "+f("headtoe","abdomen"),
+    f("headtoe","extremities")&&"Extremities: "+f("headtoe","extremities"),
+    f("headtoe","posterior")&&"Posterior: "+f("headtoe","posterior"),
+  ].filter(Boolean);
+  if(examParts.length){push('  "Patient exam reveals:"');examParts.forEach(e=>push("    "+e));}
+  if(log.vitals.length){
+    const v=log.vitals[log.vitals.length-1];
+    const vStr=VITAL_FIELDS.filter(vf=>v[vf.key]).map(vf=>vf.label+": "+v[vf.key]).join(", ");
+    push('  "Vital signs at '+(v.time||"[time]")+' are: '+vStr+'."');
+    if(log.vitals.length>1){push('  "Trend ('+log.vitals.length+' sets):"');log.vitals.forEach(vs=>{const s=VITAL_FIELDS.filter(vf=>vs[vf.key]).map(vf=>vf.label+":"+vs[vf.key]).join(" ");push("    "+(vs.time||"")+"  "+s);});}
   }
-  if (log.notes) { lines.push("── Notes ──"); lines.push(`  ${log.notes}`); lines.push(""); }
-  lines.push("────────────────────────────────────");
-  lines.push("Generated by Field Med — WFR Backcountry Reference");
-  lines.push("NOT A SUBSTITUTE FOR WFR TRAINING");
+  const allergy=f("history","allergy"),meds=f("history","meds"),hx=f("history","history"),last=f("history","last"),events=f("history","events");
+  if(allergy||meds||hx||last||events){
+    push('  "Pertinent SAMPLE history:"');
+    if(allergy) push("    Allergies: "+allergy);
+    if(meds)    push("    Medications: "+meds);
+    if(hx)      push("    History: "+hx);
+    if(last)    push("    Last intake: "+last);
+    if(events)  push("    Events: "+events);
+  }
+  sec("ASSESSMENT — Problem List");
+  const spineRuled=f("problems","spineRuled");
+  if(spineRuled&&spineRuled!=="—") push('  "Spine: '+spineRuled+'."');
+  const problems=f("problems","problems");
+  if(problems){push('  "We suspect the following problems:"');problems.split("\n").filter(Boolean).forEach(p=>push("    "+p));}
+  sec("PLAN");
+  const interventions=f("interventions","interventionNotes");
+  if(interventions){push("  Treatment:");push('  "Our treatment has included: '+interventions+'"');}
+  const evacType=f("problems","evacType"),evacPlan=f("monitor","evacPlan")||f("problems","plan");
+  if(evacType||evacPlan){
+    push("  Evacuation:");
+    if(evacType&&evacType!=="—") push('  "Evacuation type: '+evacType+'."');
+    if(evacPlan) push('  "Our evacuation plan is: '+evacPlan+'."');
+  }
+  const anticipated=f("monitor","anticipated");
+  if(anticipated){push("  Anticipated Problems:");push('  "We will monitor for: '+anticipated+'"');}
+  push("");push("━".repeat(42));push("  NOT A SUBSTITUTE FOR WFR TRAINING");
   return lines.join("\n");
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   SHARED STYLE HELPERS
-══════════════════════════════════════════════════════════════════════════════ */
-const inputSt = {
-  background: C.surface, border: `1px solid ${C.border}`, borderRadius: "6px",
-  padding: "9px 11px", color: C.text, fontFamily: mono, fontSize: "13px",
-  outline: "none", width: "100%", boxSizing: "border-box", WebkitAppearance: "none",
-};
-const btnPrimary = {
-  background: C.accent, border: "none", borderRadius: "6px", padding: "12px 18px",
-  color: C.white, fontFamily: mono, fontSize: "12px", fontWeight: 700,
-  letterSpacing: "0.06em", cursor: "pointer", WebkitAppearance: "none",
-};
+function generateWrittenSOAP(log){
+  const f=(stepId,key)=>(log.fields[stepId]||{})[key]||"";
+  const lines=[];
+  const push=l=>lines.push(l);
+  const sec=t=>{push("");push(t);push("─".repeat(t.length));};
+  push("📋 WRITTEN SOAP NOTE");
+  push("━".repeat(42));
+  push("Name: "+(log.name||"[patient/responder]")+"    Date: "+fmtDateTime(log.datetime));
+  if(log.location.display) push("Location: "+log.location.display);
+  sec("S — SUBJECTIVE / SUMMARY / STORY");
+  const age=f("history","age")||"[age/sex]";
+  const chief=f("history","signs")||f("initial","notes")||"[chief complaint]";
+  const moi=f("scene","moi")||"[MOI/HPI]";
+  const lor=f("initial","lor")||"[LOR]";
+  push("I have a "+age+" patient whose chief complaint is: "+chief+".");
+  push("Patient states (MOI/HPI): "+moi+".");
+  push("Patient status: "+lor+".");
+  const opqrst=f("history","opqrst");
+  if(opqrst){push("");push("OPQRST:");opqrst.split("\n").filter(Boolean).forEach(l=>push("  "+l));}
+  sec("O — OBJECTIVE / OBSERVATIONS / FINDINGS");
+  push("Patient exam reveals:");
+  const examMap=[["head","Head/Face"],["neck","Neck/C-Spine"],["chest","Chest"],["abdomen","Abdomen/Pelvis"],["extremities","Extremities"],["posterior","Posterior"],["notes","Other"]];
+  examMap.forEach(([k,lbl])=>{const v=f("headtoe",k);if(v) push("  "+lbl+": "+v);});
+  push("");push("Vital Signs:");
+  if(log.vitals.length){
+    log.vitals.forEach(v=>{const row=VITAL_FIELDS.map(vf=>vf.label+": "+(v[vf.key]||"—")).join("  |  ");push("  ["+( v.time||"—")+"]  "+row);});
+  } else { push("  TIME: —  LOR: —  HR: —  RR: —  SCTM: —  BP: —  Pupils: —  Temp: —"); }
+  push("");push("History (SAMPLE):");
+  [["Symptoms/Signs (S)",f("history","signs")],["Allergies (A)",f("history","allergy")],["Medications (M)",f("history","meds")],["History (P)",f("history","history")],["Last intake (L)",f("history","last")],["Events (E)",f("history","events")]].forEach(([lbl,val])=>push("  "+lbl+": "+(val||"—")));
+  sec("A — ASSESSMENT (Problem List)");
+  const problems=f("problems","problems");
+  if(problems) problems.split("\n").filter(Boolean).forEach(p=>push("  "+p));
+  else push("  [problem list]");
+  const spineRuled=f("problems","spineRuled");
+  if(spineRuled&&spineRuled!=="—") push("  Spine: "+spineRuled);
+  const shock=f("problems","shock");
+  if(shock&&shock!=="—") push("  Shock: "+shock);
+  sec("P — PLAN");
+  const plan=f("problems","plan");
+  if(plan){push("Treatment:");plan.split("\n").filter(Boolean).forEach(l=>push("  "+l));}
+  const interventions=f("interventions","interventionNotes");
+  if(interventions){push("Interventions:");interventions.split("\n").filter(Boolean).forEach(l=>push("  "+l));}
+  const evacType=f("problems","evacType"),evacPlan=f("monitor","evacPlan");
+  if(evacType&&evacType!=="—") push("Evacuation type: "+evacType);
+  if(evacPlan) push("Evacuation plan: "+evacPlan);
+  const anticipated=f("monitor","anticipated");
+  if(anticipated){push("");push("Anticipated Problems:");anticipated.split("\n").filter(Boolean).forEach(l=>push("  "+l));}
+  push("");push("━".repeat(42));push("NOT A SUBSTITUTE FOR WFR TRAINING  |  © NOLS Wilderness Medicine");
+  return lines.join("\n");
+}
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   FIELD RENDERER
-══════════════════════════════════════════════════════════════════════════════ */
-function FieldInput({ f, section, logData, onChange }) {
-  const val = (logData[section] || {})[f.key] || "";
-  const handleChange = e => onChange(section, f.key, e.target.value);
-  const labelEl = <label style={{ display:"block", fontSize:"10px", color:C.textDim, marginBottom:"4px", letterSpacing:"0.05em" }}>{f.label}</label>;
-  if (f.type === "select") return (
-    <div style={{ marginBottom:"8px" }}>
-      {labelEl}
-      <select value={val} onChange={handleChange} style={{ ...inputSt, cursor:"pointer" }}>
-        {f.options.map(o => <option key={o} value={o === "—" ? "" : o}>{o}</option>)}
-      </select>
-    </div>
-  );
-  if (f.type === "textarea") return (
-    <div style={{ marginBottom:"8px" }}>
-      {labelEl}
-      <textarea value={val} onChange={handleChange} placeholder={f.placeholder} rows={3}
-        style={{ ...inputSt, resize:"vertical", minHeight:"60px" }} />
-    </div>
-  );
+/* STYLE CONSTANTS */
+const inputSt={background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"6px",padding:"9px 11px",color:"#1c2d1e",fontFamily:mono,fontSize:"13px",outline:"none",width:"100%",boxSizing:"border-box",WebkitAppearance:"none"};
+const btnPrimary={background:"#2a6e22",border:"none",borderRadius:"6px",padding:"12px 18px",color:"#ffffff",fontFamily:mono,fontSize:"12px",fontWeight:700,letterSpacing:"0.06em",cursor:"pointer",WebkitAppearance:"none"};
+
+/* STABLE INPUTS */
+function LogInput({value,onSave,style,...props}){
+  const [local,setLocal]=useState(value??"");
+  useEffect(()=>{setLocal(value??"");},[value]);
+  return <input {...props} style={style} value={local} onChange={e=>setLocal(e.target.value)} onBlur={()=>onSave(local)}/>;
+}
+function LogTextarea({value,onSave,style,rows,placeholder}){
+  const [local,setLocal]=useState(value??"");
+  useEffect(()=>{setLocal(value??"");},[value]);
+  return <textarea value={local} rows={rows} placeholder={placeholder} style={style} onChange={e=>setLocal(e.target.value)} onBlur={()=>onSave(local)}/>;
+}
+
+/* PAIN SCALE */
+function PainScale({value,onChange}){
+  const val=parseInt(value,10);
   return (
-    <div style={{ marginBottom:"8px" }}>
-      {labelEl}
-      <input type={f.type || "text"} value={val} onChange={handleChange}
-        placeholder={f.placeholder} style={inputSt} />
+    <div style={{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"4px"}}>
+      {[0,1,2,3,4,5,6,7,8,9,10].map(n=>(
+        <button key={n} onClick={()=>onChange(String(n))}
+          style={{width:"34px",height:"34px",borderRadius:"50%",border:"none",
+            background:val===n?(n<=3?"#2a6e22":n<=6?"#c45000":"#b71c1c"):"#edf0ea",
+            color:val===n?"#ffffff":"#4a5c4b",fontFamily:mono,fontSize:"12px",
+            fontWeight:val===n?"700":"400",cursor:"pointer",WebkitAppearance:"none"}}>
+          {n}
+        </button>
+      ))}
     </div>
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   MAIN COMPONENT
-══════════════════════════════════════════════════════════════════════════════ */
-export default function WFRField() {
-  const [screen, setScreen]           = useState("home");  // "home" | "log" | "view"
-  const [logs, setLogs]               = useState([]);
-  const [activeLog, setActiveLog]     = useState(null);
-  const [viewLog, setViewLog]         = useState(null);
-  const [tab, setTab]                 = useState("pas");
-  const [openStep, setOpenStep]       = useState(0);
-  const [openProtocol, setOpenProtocol] = useState(null);
-  const [openAilment, setOpenAilment] = useState(null);
-  const [protoSearch, setProtoSearch] = useState("");
-  const [ailSearch, setAilSearch]     = useState("");
-  const [activeCat, setActiveCat]     = useState("ALL");
-  const [vitalDraft, setVitalDraft]   = useState({});
-  const [copyMsg, setCopyMsg]         = useState("");
+/* STEP PILLS */
+function StepPills({steps,activeStep,checks,onStepClick}){
+  return (
+    <div style={{display:"flex",gap:"4px",flexWrap:"wrap",marginBottom:"12px"}}>
+      {steps.map((step,i)=>{
+        const sc=checks[step.id]||{};
+        const total=step.checks.length;
+        const done=step.checks.filter((_,idx)=>sc[idx]).length;
+        const allDone=total>0&&done===total;
+        const isActive=i===activeStep;
+        return (
+          <button key={step.id} onClick={()=>onStepClick(i)}
+            style={{background:isActive?"#b8860b":allDone?"#2a6e22":"#edf0ea",
+              color:(isActive||allDone)?"#ffffff":"#4a5c4b",border:"none",borderRadius:"12px",
+              padding:"4px 9px",fontFamily:mono,fontSize:"11px",fontWeight:isActive?"700":"500",
+              cursor:"pointer",WebkitAppearance:"none",
+              outline:isActive?"2px solid #b8860b":"none",outlineOffset:"1px"}}>
+            {i+1}.{allDone?" ✓":""}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-  // Load from localStorage
-  useEffect(() => {
-    try {
-      const s = localStorage.getItem("fieldmed_logs");
-      if (s) setLogs(JSON.parse(s));
-    } catch {}
-  }, []);
+/* MAIN COMPONENT */
+export default function WFRField(){
+  const [screen,setScreen]=useState("home");
+  const [logs,setLogs]=useState([]);
+  const [activeLog,setActiveLog]=useState(null);
+  const [tab,setTab]=useState("pas");
+  const [activeStep,setActiveStep]=useState(0);
+  const [openProtocol,setOpenProtocol]=useState(null);
+  const [openAilment,setOpenAilment]=useState(null);
+  const [ailSearch,setAilSearch]=useState("");
+  const [ailSearchQ,setAilSearchQ]=useState("");
+  const [activeCat,setActiveCat]=useState("ALL");
+  const [vitalDraft,setVitalDraft]=useState({});
+  const [locating,setLocating]=useState(false);
+  const [verbalCopy,setVerbalCopy]=useState("");
+  const [writtenCopy,setWrittenCopy]=useState("");
+  const [rescuePanelOpen,setRescuePanelOpen]=useState(false);
 
-  // Persist logs
-  useEffect(() => {
-    try { localStorage.setItem("fieldmed_logs", JSON.stringify(logs)); } catch {}
-  }, [logs]);
+  /* AI AUTO-FILL STATE */
+  const [aiModalOpen,setAiModalOpen]=useState(false);
+  const [aiNotes,setAiNotes]=useState("");
+  const [aiProcessing,setAiProcessing]=useState(false);
+  const [aiError,setAiError]=useState("");
+  const [aiResult,setAiResult]=useState(null);
+  const [aiFilled,setAiFilled]=useState([]);
+  const [aiOnline,setAiOnline]=useState(true);
 
-  // ── Log mutations ──────────────────────────────────────────────────────────
-  const patchLog = (id, changes) => {
-    setLogs(ls => ls.map(l => l.id === id ? { ...l, ...changes } : l));
-    if (activeLog?.id === id) setActiveLog(prev => ({ ...prev, ...changes }));
-  };
+  const {runOffline,isLoading:offlineLoading,isReady:offlineReady,progress:offlineProgress}=useOfflineTriage();
 
-  const patchLogData = (id, section, key, value) => {
-    setLogs(ls => ls.map(l => {
-      if (l.id !== id) return l;
-      return { ...l, data: { ...l.data, [section]: { ...l.data[section], [key]: value } } };
-    }));
-    if (activeLog?.id === id) {
-      setActiveLog(prev => ({
-        ...prev,
-        data: { ...prev.data, [section]: { ...prev.data[section], [key]: value } },
-      }));
-    }
-  };
+  /* Track online status */
+  useEffect(()=>{
+    const update=()=>setAiOnline(typeof navigator!=="undefined"?navigator.onLine:true);
+    update();
+    window.addEventListener("online",update);
+    window.addEventListener("offline",update);
+    return()=>{window.removeEventListener("online",update);window.removeEventListener("offline",update);};
+  },[]);
 
-  const startNewLog = () => {
-    const log = makeLog();
-    setLogs(ls => [log, ...ls]);
-    setActiveLog(log);
-    setTab("pas");
-    setOpenStep(0);
-    setScreen("log");
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        const display = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
-        patchLog(log.id, { location: { lat: pos.coords.latitude, lng: pos.coords.longitude, display } });
-      }, () => {});
-    }
-  };
+  useEffect(()=>{try{const s=localStorage.getItem("fieldmed_logs_v2");if(s)setLogs(JSON.parse(s));}catch{}},[]);
+  useEffect(()=>{try{localStorage.setItem("fieldmed_logs_v2",JSON.stringify(logs));}catch{}},[logs]);
+  useEffect(()=>{const t=setTimeout(()=>setAilSearchQ(ailSearch),300);return()=>clearTimeout(t);},[ailSearch]);
 
-  const openLog = (log) => {
-    setActiveLog(log);
-    setTab("pas");
-    setOpenStep(0);
-    setScreen("log");
-  };
+  const patchLog=useCallback((id,changes)=>{
+    setLogs(ls=>ls.map(l=>l.id===id?{...l,...changes}:l));
+    setActiveLog(prev=>prev?.id===id?{...prev,...changes}:prev);
+  },[]);
 
-  const deleteLog = (id) => {
-    if (typeof window !== "undefined" && !window.confirm("Delete this log?")) return;
-    setLogs(ls => ls.filter(l => l.id !== id));
-  };
+  const setCheck=useCallback((logId,stepId,idx,val)=>{
+    const upd=l=>{if(l.id!==logId)return l;const sc={...(l.checks[stepId]||{}),[idx]:val};return{...l,checks:{...l.checks,[stepId]:sc}};};
+    setLogs(ls=>ls.map(upd));
+    setActiveLog(prev=>prev?upd(prev):prev);
+  },[]);
 
-  const copyExport = (log) => {
-    const text = exportText(log);
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(() => {
-        setCopyMsg("Copied!");
-        setTimeout(() => setCopyMsg(""), 2000);
-      });
-    }
-  };
+  const setField=useCallback((logId,stepId,key,value)=>{
+    const upd=l=>{if(l.id!==logId)return l;return{...l,fields:{...l.fields,[stepId]:{...(l.fields[stepId]||{}),[key]:value}}};};
+    setLogs(ls=>ls.map(upd));
+    setActiveLog(prev=>prev?upd(prev):prev);
+  },[]);
 
-  const addVitals = () => {
-    if (!Object.values(vitalDraft).some(v => v)) return;
-    const entry = { ...vitalDraft, time: new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) };
-    const vitals = [...(activeLog.vitals || []), entry];
-    patchLog(activeLog.id, { vitals });
+  const addVital=useCallback((logId)=>{
+    const v={...vitalDraft,time:vitalDraft.time||nowTime()};
+    const upd=l=>l.id===logId?{...l,vitals:[...l.vitals,v]}:l;
+    setLogs(ls=>ls.map(upd));
+    setActiveLog(prev=>prev?upd(prev):prev);
     setVitalDraft({});
+  },[vitalDraft]);
+
+  const removeVital=useCallback((logId,idx)=>{
+    const upd=l=>l.id===logId?{...l,vitals:l.vitals.filter((_,i)=>i!==idx)}:l;
+    setLogs(ls=>ls.map(upd));
+    setActiveLog(prev=>prev?upd(prev):prev);
+  },[]);
+
+  /* AI AUTO-FILL: apply triage result to the active log */
+  const applyTriageToLog=useCallback((logId,triage)=>{
+    const filled=[];
+    const sf=(stepId,key,val)=>{
+      if(val&&val!=="—"&&val!==""){
+        setField(logId,stepId,key,val);
+        filled.push({stepId,key,val});
+      }
+    };
+
+    // scene
+    if(triage.scene){
+      sf("scene","numPatients",triage.scene.numPatients);
+      sf("scene","moi",triage.scene.moi);
+      sf("scene","sceneSafe",triage.scene.sceneSafe);
+      sf("scene","resources",triage.scene.resources);
+    }
+    // initial
+    if(triage.initial){
+      sf("initial","lor",triage.initial.lor);
+      sf("initial","airway",triage.initial.airway);
+      sf("initial","breathing",triage.initial.breathing);
+      sf("initial","bleeding",triage.initial.bleeding);
+      sf("initial","spine",triage.initial.spine);
+      sf("initial","notes",triage.initial.notes);
+    }
+    // headtoe
+    if(triage.headtoe){
+      sf("headtoe","head",triage.headtoe.head);
+      sf("headtoe","neck",triage.headtoe.neck);
+      sf("headtoe","chest",triage.headtoe.chest);
+      sf("headtoe","abdomen",triage.headtoe.abdomen);
+      sf("headtoe","extremities",triage.headtoe.extremities);
+      sf("headtoe","posterior",triage.headtoe.posterior);
+      sf("headtoe","notes",triage.headtoe.notes);
+    }
+    // history
+    if(triage.history){
+      sf("history","age",triage.history.age);
+      sf("history","opqrst",triage.history.opqrst);
+      sf("history","signs",triage.history.signs);
+      sf("history","allergy",triage.history.allergy);
+      sf("history","meds",triage.history.meds);
+      sf("history","history",triage.history.history);
+      sf("history","last",triage.history.last);
+      sf("history","events",triage.history.events);
+      sf("history","pain",triage.history.pain);
+    }
+    // problems
+    if(triage.problems){
+      sf("problems","problems",triage.problems.problems);
+      sf("problems","spineRuled",triage.problems.spineRuled);
+      sf("problems","shock",triage.problems.shock);
+      sf("problems","evacType",triage.problems.evacType);
+      sf("problems","plan",triage.problems.plan);
+    }
+    // pfa
+    if(triage.pfa){
+      sf("pfa","pfaNotes",triage.pfa.pfaNotes);
+    }
+    // interventions
+    if(triage.interventions){
+      sf("interventions","interventionNotes",triage.interventions.interventionNotes);
+    }
+    // monitor
+    if(triage.monitor){
+      sf("monitor","trend",triage.monitor.trend);
+      sf("monitor","anticipated",triage.monitor.anticipated);
+      sf("monitor","evacPlan",triage.monitor.evacPlan);
+      sf("monitor","comms",triage.monitor.comms);
+    }
+    // vitals — add each vital set
+    if(triage.vitals&&Array.isArray(triage.vitals)&&triage.vitals.length>0){
+      triage.vitals.forEach(v=>{
+        const vObj={...v,time:v.time||nowTime()};
+        const upd=l=>l.id===logId?{...l,vitals:[...l.vitals,vObj]}:l;
+        setLogs(ls=>ls.map(upd));
+        setActiveLog(prev=>prev?upd(prev):prev);
+      });
+      filled.push({stepId:"vitals",key:"sets",val:triage.vitals.length+" vital set(s)"});
+    }
+    // encounter notes
+    if(triage.notes&&triage.notes.trim()){
+      patchLog(logId,{notes:triage.notes});
+      filled.push({stepId:"notes",key:"notes",val:triage.notes});
+    }
+    // rescue location
+    if(triage.rescueLocation){
+      const rl=triage.rescueLocation;
+      const hasRL=Object.values(rl).some(v=>v&&v!=="—"&&v!=="");
+      if(hasRL){
+        patchLog(logId,{rescueLocation:{...((activeLog||{}).rescueLocation||{}),...rl}});
+        filled.push({stepId:"rescueLocation",key:"details",val:"Rescue location fields"});
+      }
+    }
+    return filled;
+  },[setField,patchLog,setLogs,setActiveLog,activeLog]);
+
+  const handleAiProcess=useCallback(async()=>{
+    if(!aiNotes.trim()||!activeLog)return;
+    setAiProcessing(true);
+    setAiError("");
+    setAiResult(null);
+    setAiFilled([]);
+    try{
+      const{runTriage}=createTriageRunner(runOffline);
+      const triage=await runTriage(aiNotes);
+      const filled=applyTriageToLog(activeLog.id,triage);
+      setAiResult(triage);
+      setAiFilled(filled);
+    }catch(err){
+      setAiError(err.message||"Triage failed. Check your connection or notes.");
+    }finally{
+      setAiProcessing(false);
+    }
+  },[aiNotes,activeLog,runOffline,applyTriageToLog]);
+
+  const startNewLog=()=>{
+    const log=makeLog();
+    setLogs(ls=>[log,...ls]);
+    setActiveLog(log);setTab("pas");setActiveStep(0);setScreen("log");
+    if(typeof navigator!=="undefined"&&navigator.geolocation){
+      setLocating(true);
+      navigator.geolocation.getCurrentPosition(async pos=>{
+        const{latitude:lat,longitude:lng,altitude}=pos.coords;
+        const display=await resolveLocation(lat,lng,altitude);
+        patchLog(log.id,{location:{lat,lng,display}});setLocating(false);
+      },()=>setLocating(false),{enableHighAccuracy:true,timeout:15000});
+    }
   };
 
-  const toggleCheck = (sid, item) => {
-    const key = `${sid}::${item}`;
-    const checks = { ...(activeLog.checks || {}), [key]: !activeLog.checks?.[key] };
-    patchLog(activeLog.id, { checks });
+  const openLog=(log)=>{setActiveLog(log);setTab("pas");setActiveStep(0);setScreen("log");};
+  const deleteLog=(id)=>{
+    if(typeof window!=="undefined"&&!window.confirm("Delete this log?"))return;
+    setLogs(ls=>ls.filter(l=>l.id!==id));
+    if(activeLog?.id===id){setActiveLog(null);setScreen("home");}
+  };
+  const copyText=(text,setter)=>{
+    if(typeof navigator!=="undefined"&&navigator.clipboard){
+      navigator.clipboard.writeText(text).then(()=>{setter("Copied!");setTimeout(()=>setter(""),2000);});
+    }
   };
 
-  const stepProg = s => {
-    const d = s.items.filter(i => activeLog?.checks?.[`${s.id}::${i}`]).length;
-    return { d, t: s.items.length, pct: (d / s.items.length) * 100 };
-  };
-  const flagColor = f => f === "URGENT" ? C.danger : f === "MONITOR" ? C.warn : C.blue;
+  const log=activeLog;
+  const currentStep=STEPS[activeStep];
 
-  const AILMENT_CATS = ["ALL", ...new Set(AILMENTS.map(a => a.cat))];
-  const filteredAilments = AILMENTS.filter(a => {
-    const catOk = activeCat === "ALL" || a.cat === activeCat;
-    const q = ailSearch.toLowerCase();
-    const textOk = !q || a.title.toLowerCase().includes(q) || a.signs.some(s => s.toLowerCase().includes(q));
-    return catOk && textOk;
-  });
-  const filteredProtocols = PROTOCOLS.filter(p => {
-    const q = protoSearch.toLowerCase();
-    return !q || p.title.toLowerCase().includes(q) || p.signs.some(s => s.toLowerCase().includes(q));
-  });
-
-  /* ── SHARED WRAPPER ──────────────────────────────────────────────────────── */
-  const Wrap = ({ children }) => (
-    <div style={{ background:C.bg, minHeight:"100vh", color:C.text, fontFamily:mono, maxWidth:"480px", margin:"0 auto", display:"flex", flexDirection:"column" }}>
-      {children}
+  /* HOME */
+  if(screen==="home") return (
+    <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
+      <div style={{maxWidth:480,margin:"0 auto"}}>
+        <div style={{textAlign:"center",marginBottom:"20px"}}>
+          <div style={{fontSize:"22px",fontWeight:700,color:"#2a6e22",letterSpacing:"0.08em"}}>FIELD MED</div>
+          <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.12em",marginTop:"2px"}}>WFR BACKCOUNTRY REFERENCE</div>
+        </div>
+        <button onClick={startNewLog} style={{...btnPrimary,width:"100%",fontSize:"14px",marginBottom:"16px",padding:"14px"}}>
+          + NEW PATIENT LOG
+        </button>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"16px"}}>
+          {[
+            {label:"Protocols",sub:"Critical care guides",color:"#b71c1c",onClick:()=>setScreen("protocols")},
+            {label:"Ailments",sub:"Signs & treatment",color:"#1a5276",onClick:()=>setScreen("ailments")},
+            {label:"Evac Guide",sub:"Decision criteria",color:"#6a1b9a",onClick:()=>setScreen("evac")},
+            {label:"About",sub:"WFR reference tool",color:"#4a5c4b",onClick:()=>setScreen("about")},
+          ].map(tile=>(
+            <button key={tile.label} onClick={tile.onClick}
+              style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"10px",padding:"14px 12px",textAlign:"left",cursor:"pointer",WebkitAppearance:"none"}}>
+              <div style={{fontSize:"13px",fontWeight:700,color:tile.color}}>{tile.label}</div>
+              <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"2px"}}>{tile.sub}</div>
+            </button>
+          ))}
+        </div>
+        {logs.length>0&&(
+          <div>
+            <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.1em",marginBottom:"6px"}}>PAST LOGS</div>
+            {logs.map(l=>(
+              <div key={l.id} style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",padding:"10px 12px",marginBottom:"6px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div onClick={()=>openLog(l)} style={{cursor:"pointer",flex:1}}>
+                  <div style={{fontSize:"13px",fontWeight:600,color:"#1c2d1e"}}>{l.name||"(unnamed)"}</div>
+                  <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"1px"}}>{fmtDateTime(l.datetime)}</div>
+                  {l.location.display&&<div style={{fontSize:"10px",color:"#8a9c8b"}}>{l.location.display}</div>}
+                </div>
+                <button onClick={()=>deleteLog(l.id)} style={{background:"none",border:"none",color:"#8a9c8b",cursor:"pointer",fontSize:"16px",padding:"4px 8px"}}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 
-  /* ══════════════════════════════════════════════════════════════════════════
-     HOME SCREEN
-  ══════════════════════════════════════════════════════════════════════════ */
-  if (screen === "home") return (
-    <Wrap>
-      <div style={{ padding:"20px 16px 16px", borderBottom:`1px solid ${C.border}`, background:C.surface, boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-          <svg width="36" height="36" viewBox="0 0 36 36">
-            <rect width="36" height="36" rx="8" fill={C.accent}/>
-            <rect x="16" y="7" width="4" height="22" rx="1.5" fill="white"/>
-            <rect x="7" y="16" width="22" height="4" rx="1.5" fill="white"/>
-          </svg>
-          <div>
-            <div style={{ fontSize:"20px", fontWeight:700, color:C.text, letterSpacing:"-0.02em", lineHeight:"1.1" }}>Field Med</div>
-            <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.2em", marginTop:"1px" }}>WFR BACKCOUNTRY REFERENCE</div>
-          </div>
+  /* PROTOCOLS */
+  if(screen==="protocols") return (
+    <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
+      <div style={{maxWidth:480,margin:"0 auto"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"16px"}}>
+          <button onClick={()=>setScreen("home")} style={{background:"none",border:"none",color:"#2a6e22",fontFamily:mono,fontSize:"13px",cursor:"pointer",padding:0}}>← Back</button>
+          <div style={{fontWeight:700,color:"#1c2d1e",fontSize:"15px",letterSpacing:"0.06em"}}>PROTOCOLS</div>
         </div>
-      </div>
-
-      <div style={{ padding:"16px" }}>
-        <button onClick={startNewLog} style={{ ...btnPrimary, width:"100%", padding:"16px", fontSize:"14px", letterSpacing:"0.08em" }}>
-          + NEW PATIENT LOG
-        </button>
-      </div>
-
-      <div style={{ flex:1, padding:"0 16px 24px" }}>
-        {logs.length === 0 ? (
-          <div style={{ textAlign:"center", padding:"48px 20px", color:C.textFaint }}>
-            <svg width="48" height="48" viewBox="0 0 48 48" style={{ marginBottom:"12px", opacity:0.4 }}>
-              <rect x="8" y="4" width="32" height="40" rx="4" fill="none" stroke={C.textFaint} strokeWidth="2"/>
-              <line x1="16" y1="16" x2="32" y2="16" stroke={C.textFaint} strokeWidth="2"/>
-              <line x1="16" y1="22" x2="32" y2="22" stroke={C.textFaint} strokeWidth="2"/>
-              <line x1="16" y1="28" x2="26" y2="28" stroke={C.textFaint} strokeWidth="2"/>
-            </svg>
-            <div style={{ fontSize:"14px", fontWeight:600, color:C.textDim }}>No patient logs yet</div>
-            <div style={{ fontSize:"12px", marginTop:"6px" }}>Tap "New Patient Log" to start a patient encounter</div>
+        {PROTOCOLS.map(p=>(
+          <div key={p.id} style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",marginBottom:"8px",overflow:"hidden"}}>
+            <button onClick={()=>setOpenProtocol(openProtocol===p.id?null:p.id)}
+              style={{width:"100%",background:"none",border:"none",padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",WebkitAppearance:"none"}}>
+              <div style={{textAlign:"left"}}>
+                <span style={{fontSize:"10px",fontWeight:700,letterSpacing:"0.1em",color:p.flag==="URGENT"?"#b71c1c":p.flag==="PROTOCOL"?"#1a5276":"#c45000",marginRight:"8px"}}>{p.flag}</span>
+                <span style={{fontSize:"13px",fontWeight:600,color:"#1c2d1e"}}>{p.title}</span>
+              </div>
+              <span style={{color:"#8a9c8b"}}>{openProtocol===p.id?"▲":"▼"}</span>
+            </button>
+            {openProtocol===p.id&&(
+              <div style={{padding:"0 14px 14px"}}>
+                <div style={{fontSize:"11px",fontWeight:700,color:"#4a5c4b",marginBottom:"4px",letterSpacing:"0.08em"}}>SIGNS / INDICATORS</div>
+                {p.signs.map((s,i)=><div key={i} style={{fontSize:"12px",color:"#1c2d1e",marginBottom:"3px",paddingLeft:"8px"}}>• {s}</div>)}
+                <div style={{fontSize:"11px",fontWeight:700,color:"#4a5c4b",marginTop:"10px",marginBottom:"4px",letterSpacing:"0.08em"}}>TREATMENT</div>
+                {p.tx.map((t,i)=><div key={i} style={{fontSize:"12px",color:"#1c2d1e",marginBottom:"3px",paddingLeft:"8px"}}>• {t}</div>)}
+              </div>
+            )}
           </div>
-        ) : (
-          <div>
-            <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.15em", marginBottom:"12px" }}>PAST LOGS — {logs.length}</div>
-            <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-              {logs.map(log => (
-                <div key={log.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"10px", overflow:"hidden", boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
-                  <button onClick={() => openLog(log)} style={{ width:"100%", padding:"14px 16px", background:"transparent", border:"none", textAlign:"left", cursor:"pointer" }}>
-                    <div style={{ fontSize:"15px", fontWeight:700, color:C.text, marginBottom:"5px" }}>
-                      {log.name || <span style={{ color:C.textFaint }}>(unnamed encounter)</span>}
-                    </div>
-                    <div style={{ fontSize:"11px", color:C.textDim }}>{fmtDateTime(log.datetime)}</div>
-                    {log.location.display && (
-                      <div style={{ fontSize:"11px", color:C.textFaint, marginTop:"3px" }}>📍 {log.location.display}</div>
-                    )}
-                    {log.vitals.length > 0 && (
-                      <div style={{ fontSize:"10px", color:C.accent, marginTop:"4px" }}>{log.vitals.length} vitals set{log.vitals.length !== 1 ? "s" : ""} recorded</div>
-                    )}
-                  </button>
-                  <div style={{ display:"flex", borderTop:`1px solid ${C.border}` }}>
-                    {[
-                      { label:"OPEN",   action: () => openLog(log),                  color: C.accent },
-                      { label:"EXPORT", action: () => copyExport(log),               color: C.textDim },
-                      { label:"DELETE", action: () => deleteLog(log.id),             color: C.danger },
-                    ].map((btn, i) => (
-                      <button key={btn.label} onClick={btn.action} style={{ flex:1, padding:"9px", background:"transparent", border:"none", borderLeft: i > 0 ? `1px solid ${C.border}` : "none", color:btn.color, fontFamily:mono, fontSize:"10px", fontWeight:700, cursor:"pointer", letterSpacing:"0.05em" }}>{btn.label}</button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        ))}
       </div>
-
-      <div style={{ padding:"10px 16px", borderTop:`1px solid ${C.border}`, background:C.surface, textAlign:"center" }}>
-        <span style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.1em" }}>NOT A SUBSTITUTE FOR WFR TRAINING</span>
-      </div>
-    </Wrap>
+    </div>
   );
 
-  /* ══════════════════════════════════════════════════════════════════════════
-     VIEW LOG (read-only export text)
-  ══════════════════════════════════════════════════════════════════════════ */
-  if (screen === "view" && viewLog) {
-    const text = exportText(viewLog);
+  /* AILMENTS */
+  if(screen==="ailments"){
+    const cats=["ALL",...Array.from(new Set(AILMENTS.map(a=>a.cat)))];
+    const filtered=AILMENTS
+      .map(a=>({a,score:fuzzyScoreAilment(a,ailSearchQ)}))
+      .filter(({a,score})=>score>0&&(activeCat==="ALL"||a.cat===activeCat))
+      .sort((x,y)=>y.score-x.score).map(({a})=>a);
     return (
-      <Wrap>
-        <div style={{ padding:"12px 16px", borderBottom:`1px solid ${C.border}`, background:C.surface, display:"flex", alignItems:"center", gap:"12px" }}>
-          <button onClick={() => setScreen("home")} style={{ background:"transparent", border:"none", color:C.accent, fontFamily:mono, fontSize:"13px", cursor:"pointer", padding:"0", fontWeight:700 }}>← Logs</button>
-          <span style={{ fontWeight:700, flex:1, color:C.text, fontSize:"14px" }}>{viewLog.name || "Patient Log"}</span>
-          <button onClick={() => copyExport(viewLog)} style={{ ...btnPrimary, padding:"7px 14px", fontSize:"10px" }}>
-            {copyMsg || "COPY"}
-          </button>
+      <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
+        <div style={{maxWidth:480,margin:"0 auto"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"12px"}}>
+            <button onClick={()=>{setScreen("home");setOpenAilment(null);}} style={{background:"none",border:"none",color:"#2a6e22",fontFamily:mono,fontSize:"13px",cursor:"pointer",padding:0}}>← Back</button>
+            <div style={{fontWeight:700,color:"#1c2d1e",fontSize:"15px",letterSpacing:"0.06em"}}>AILMENTS</div>
+          </div>
+          <input value={ailSearch} onChange={e=>setAilSearch(e.target.value)} placeholder="Search ailments..." style={{...inputSt,marginBottom:"8px"}}/>
+          <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"12px"}}>
+            {cats.map(c=><button key={c} onClick={()=>setActiveCat(c)}
+              style={{background:activeCat===c?"#1a5276":"#edf0ea",color:activeCat===c?"#ffffff":"#4a5c4b",border:"none",borderRadius:"12px",padding:"4px 10px",fontFamily:mono,fontSize:"11px",cursor:"pointer",WebkitAppearance:"none"}}>{c}</button>)}
+          </div>
+          {filtered.map(a=>(
+            <div key={a.id} style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",marginBottom:"8px",overflow:"hidden"}}>
+              <button onClick={()=>setOpenAilment(openAilment===a.id?null:a.id)}
+                style={{width:"100%",background:"none",border:"none",padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",WebkitAppearance:"none"}}>
+                <div style={{textAlign:"left"}}>
+                  <span style={{fontSize:"10px",color:"#8a9c8b",marginRight:"8px"}}>{a.cat}</span>
+                  <span style={{fontSize:"13px",fontWeight:600,color:"#1c2d1e"}}>{a.title}</span>
+                  {a.evac&&<span style={{fontSize:"10px",fontWeight:700,color:"#b71c1c",marginLeft:"8px"}}>EVAC</span>}
+                </div>
+                <span style={{color:"#8a9c8b"}}>{openAilment===a.id?"▲":"▼"}</span>
+              </button>
+              {openAilment===a.id&&(
+                <div style={{padding:"0 14px 14px"}}>
+                  <div style={{fontSize:"11px",fontWeight:700,color:"#4a5c4b",marginBottom:"4px",letterSpacing:"0.08em"}}>SIGNS & SYMPTOMS</div>
+                  {a.signs.map((s,i)=><div key={i} style={{fontSize:"12px",color:"#1c2d1e",marginBottom:"3px",paddingLeft:"8px"}}>• {s}</div>)}
+                  <div style={{fontSize:"11px",fontWeight:700,color:"#4a5c4b",marginTop:"10px",marginBottom:"4px",letterSpacing:"0.08em"}}>TREATMENT</div>
+                  {a.tx.map((t,i)=><div key={i} style={{fontSize:"12px",color:"#1c2d1e",marginBottom:"3px",paddingLeft:"8px"}}>• {t}</div>)}
+                  {a.avoid&&<div style={{marginTop:"10px",background:"#ffebee",borderRadius:"6px",padding:"8px 10px",fontSize:"11px",fontWeight:700,color:"#b71c1c"}}>⚠ {a.avoid}</div>}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-        <div style={{ flex:1, overflowY:"auto", padding:"16px" }}>
-          <pre style={{ fontFamily:mono, fontSize:"11px", color:C.text, lineHeight:"1.8", whiteSpace:"pre-wrap", margin:0 }}>{text}</pre>
-        </div>
-      </Wrap>
+      </div>
     );
   }
 
-  /* ══════════════════════════════════════════════════════════════════════════
-     ACTIVE LOG SCREEN
-  ══════════════════════════════════════════════════════════════════════════ */
-  if (!activeLog) return null;
-
-  return (
-    <Wrap>
-      {/* ── Log header ──────────────────────────────────────────────────── */}
-      <div style={{ padding:"10px 14px 10px", borderBottom:`1px solid ${C.border}`, background:C.surface, boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"8px" }}>
-          <button onClick={() => setScreen("home")} style={{ background:"transparent", border:"none", color:C.accent, fontFamily:mono, fontSize:"13px", cursor:"pointer", padding:"0", flexShrink:0, fontWeight:700 }}>← Logs</button>
-          <input
-            value={activeLog.name}
-            onChange={e => patchLog(activeLog.id, { name: e.target.value })}
-            placeholder="Log name (e.g. Jane — ankle injury)"
-            style={{ flex:1, background:"transparent", border:"none", fontFamily:mono, fontSize:"13px", fontWeight:700, color:C.text, outline:"none", minWidth:0 }}
-          />
-          <button onClick={() => copyExport(activeLog)} style={{ background: copyMsg ? C.accentLight : C.raised, border:`1px solid ${C.border}`, borderRadius:"5px", padding:"6px 10px", color: copyMsg ? C.accent : C.textDim, fontFamily:mono, fontSize:"9px", cursor:"pointer", flexShrink:0, letterSpacing:"0.06em", fontWeight:700 }}>
-            {copyMsg || "EXPORT"}
-          </button>
+  /* EVAC */
+  if(screen==="evac") return (
+    <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
+      <div style={{maxWidth:480,margin:"0 auto"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"16px"}}>
+          <button onClick={()=>setScreen("home")} style={{background:"none",border:"none",color:"#2a6e22",fontFamily:mono,fontSize:"13px",cursor:"pointer",padding:0}}>← Back</button>
+          <div style={{fontWeight:700,color:"#1c2d1e",fontSize:"15px",letterSpacing:"0.06em"}}>EVAC DECISION GUIDE</div>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:"8px", fontSize:"10px", color:C.textFaint, flexWrap:"wrap" }}>
-          <span>{fmtDateTime(activeLog.datetime)}</span>
-          <span>·</span>
-          {activeLog.location.display ? (
-            <span style={{ display:"flex", alignItems:"center", gap:"3px" }}>
-              <span>📍</span>
-              <input
-                value={activeLog.location.display}
-                onChange={e => patchLog(activeLog.id, { location: { ...activeLog.location, display: e.target.value } })}
-                style={{ background:"transparent", border:"none", fontFamily:mono, fontSize:"10px", color:C.textFaint, outline:"none", minWidth:0, width:`${Math.max(activeLog.location.display.length + 2, 12)}ch` }}
-              />
-            </span>
-          ) : (
-            <button onClick={() => {
-              if (typeof navigator !== "undefined" && navigator.geolocation)
-                navigator.geolocation.getCurrentPosition(pos => {
-                  patchLog(activeLog.id, { location: { lat:pos.coords.latitude, lng:pos.coords.longitude, display:`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}` } });
-                }, () => {});
-            }} style={{ background:"transparent", border:"none", color:C.blue, fontFamily:mono, fontSize:"10px", cursor:"pointer", padding:0, textDecoration:"underline" }}>
-              📍 Get location
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Tabs ────────────────────────────────────────────────────────── */}
-      <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, background:C.surface, overflowX:"auto", flexShrink:0 }}>
-        {[{id:"pas",label:"PAS"},{id:"vitals",label:"VITALS"},{id:"protocols",label:"PROTOCOLS"},{id:"ailments",label:"AILMENTS"},{id:"evac",label:"EVAC"}].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ flex:"0 0 auto", padding:"11px 13px", border:"none", background: tab===t.id ? C.accentLight : "transparent", color: tab===t.id ? C.accent : C.textDim, fontFamily:mono, fontSize:"10px", fontWeight:700, letterSpacing:"0.08em", cursor:"pointer", borderBottom: tab===t.id ? `2px solid ${C.accent}` : "2px solid transparent", WebkitAppearance:"none" }}>{t.label}</button>
+        {[{key:"emergency",label:"🚨 EMERGENCY — Call Now",color:"#b71c1c",bg:"#ffebee"},
+          {key:"urgent",label:"⚠ URGENT — Within Hours",color:"#c45000",bg:"#fff3e0"},
+          {key:"monitor",label:"👁 MONITOR — May Wait",color:"#2a6e22",bg:"#e6f4e2"}].map(sec=>(
+          <div key={sec.key} style={{background:sec.bg,border:"1px solid "+sec.color,borderRadius:"8px",padding:"12px 14px",marginBottom:"12px"}}>
+            <div style={{fontSize:"13px",fontWeight:700,color:sec.color,marginBottom:"8px"}}>{sec.label}</div>
+            {EVAC_TRIGGERS[sec.key].map((t,i)=><div key={i} style={{fontSize:"12px",color:"#1c2d1e",marginBottom:"4px",paddingLeft:"8px"}}>• {t}</div>)}
+          </div>
         ))}
       </div>
+    </div>
+  );
 
-      {/* ── Content ─────────────────────────────────────────────────────── */}
-      <div style={{ flex:1, overflowY:"auto", padding:"12px" }}>
+  /* ABOUT */
+  if(screen==="about") return (
+    <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
+      <div style={{maxWidth:480,margin:"0 auto"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"16px"}}>
+          <button onClick={()=>setScreen("home")} style={{background:"none",border:"none",color:"#2a6e22",fontFamily:mono,fontSize:"13px",cursor:"pointer",padding:0}}>← Back</button>
+          <div style={{fontWeight:700,color:"#1c2d1e",fontSize:"15px"}}>ABOUT</div>
+        </div>
+        <div style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",padding:"16px",fontSize:"12px",color:"#1c2d1e",lineHeight:"1.7"}}>
+          <div style={{fontWeight:700,marginBottom:"8px"}}>Field Med — WFR Backcountry Reference</div>
+          <p>Built for Wilderness First Responders. Follows the Patient Assessment System from the NOLS Wilderness Medicine Handbook.</p>
+          <p style={{marginTop:"8px",color:"#b71c1c",fontWeight:700}}>⚠ NOT A SUBSTITUTE FOR WFR TRAINING.</p>
+          <p style={{marginTop:"8px"}}>This tool supports — it does not replace — proper WFR certification and sound clinical judgment in the field.</p>
+          <div style={{marginTop:"12px",color:"#8a9c8b",fontSize:"11px"}}>Protocol content based on NOLS Wilderness Medicine, 7th edition. © 2026 NOLS.</div>
+        </div>
+      </div>
+    </div>
+  );
 
-        {/* ════ PAS TAB ════ */}
-        {tab === "pas" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-            <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.15em", marginBottom:"4px" }}>PATIENT ASSESSMENT SYSTEM</div>
-            {PAS.map((step, idx) => {
-              const { d, t, pct } = stepProg(step);
-              const isOpen = openStep === idx;
-              const complete = d === t;
-              const fields = PAS_FIELDS[step.id] || [];
-              const hasData = fields.some(f => (activeLog.data[step.id] || {})[f.key]);
-              return (
-                <div key={step.id} style={{ background:C.surface, border:`1px solid ${complete ? C.accent+"70" : C.border}`, borderRadius:"8px", overflow:"hidden", boxShadow: isOpen ? "0 2px 8px rgba(0,0,0,0.07)" : "none" }}>
-                  <button onClick={() => setOpenStep(isOpen ? -1 : idx)} style={{ width:"100%", padding:"13px 14px", background:"transparent", border:"none", display:"flex", alignItems:"center", gap:"10px", cursor:"pointer", textAlign:"left" }}>
-                    <div style={{ width:"10px", height:"10px", borderRadius:"50%", flexShrink:0, background: complete ? C.accent : d > 0 ? C.warn : C.border, boxShadow: complete ? `0 0 6px ${C.accent}50` : "none" }} />
-                    <span style={{ fontSize:"8px", fontWeight:700, letterSpacing:"0.14em", color:step.color, flexShrink:0 }}>{step.tag}</span>
-                    <span style={{ fontSize:"13px", fontWeight:700, color:C.text, flex:1 }}>{step.label}</span>
-                    {hasData && !isOpen && <span style={{ fontSize:"8px", color:C.accent, background:C.accentLight, padding:"2px 6px", borderRadius:"3px", fontWeight:700 }}>DATA</span>}
-                    <span style={{ fontSize:"10px", color:C.textFaint, flexShrink:0 }}>{d}/{t}</span>
-                  </button>
-                  <div style={{ height:"2px", background:C.raised }}>
-                    <div style={{ height:"100%", width:`${pct}%`, background: complete ? C.accent : C.warn, transition:"width 0.3s" }} />
-                  </div>
-                  {isOpen && (
-                    <div style={{ padding:"12px 14px 16px" }}>
-                      {/* Checklist */}
-                      <div style={{ display:"flex", flexDirection:"column", gap:"4px", marginBottom: fields.length && step.id !== "vitals" ? "14px" : 0 }}>
-                        {step.items.map(item => {
-                          const checked = !!activeLog.checks?.[`${step.id}::${item}`];
-                          return (
-                            <button key={item} onClick={() => toggleCheck(step.id, item)} style={{ display:"flex", alignItems:"center", gap:"10px", padding:"10px 10px", borderRadius:"6px", background: checked ? C.accentLight : C.raised, border:`1px solid ${checked ? C.accent+"60" : C.border}`, cursor:"pointer", textAlign:"left", width:"100%", WebkitAppearance:"none" }}>
-                              <div style={{ width:"16px", height:"16px", borderRadius:"4px", flexShrink:0, background: checked ? C.accent : "transparent", border:`2px solid ${checked ? C.accent : C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"10px", color:C.white, fontWeight:900 }}>{checked ? "✓" : ""}</div>
-                              <span style={{ fontSize:"12px", color: checked ? C.textFaint : C.text, textDecoration: checked ? "line-through" : "none" }}>{item}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {/* Data entry for this step */}
-                      {fields.length > 0 && step.id !== "vitals" && (
-                        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:"12px" }}>
-                          <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"10px" }}>RECORD DATA</div>
-                          {fields.map(f => (
-                            <FieldInput key={f.key} f={f} section={step.id} logData={activeLog.data} onChange={(sec, key, val) => patchLogData(activeLog.id, sec, key, val)} />
-                          ))}
-                        </div>
-                      )}
-                      {step.id === "vitals" && (
-                        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:"12px" }}>
-                          <div style={{ fontSize:"11px", color:C.textDim }}>Record serial vitals in the <strong>VITALS</strong> tab</div>
-                          <div style={{ fontSize:"10px", color:C.textFaint, marginTop:"4px" }}>{activeLog.vitals.length} vitals set{activeLog.vitals.length !== 1 ? "s" : ""} logged</div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {/* General notes */}
-            <div style={{ marginTop:"6px" }}>
-              <label style={{ display:"block", fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"6px" }}>GENERAL NOTES</label>
-              <textarea value={activeLog.notes || ""} onChange={e => patchLog(activeLog.id, { notes: e.target.value })} placeholder="Free-text notes for this encounter..." rows={4} style={{ ...inputSt, resize:"vertical" }} />
+  /* LOG SCREEN */
+  if(!log) return null;
+  const verbalReport=generateVerbalReport(log);
+  const writtenReport=generateWrittenSOAP(log);
+
+  /* Evac urgency for AI alert banner */
+  const evacFromAI=aiResult?.problems?.evacType||"";
+  const isEmergencyEvac=evacFromAI==="Emergency — call now";
+  const isUrgentEvac=evacFromAI==="Urgent — within hours";
+
+  /* AI MODAL */
+  const aiModal=aiModalOpen&&(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+      onClick={e=>{if(e.target===e.currentTarget){setAiModalOpen(false);setAiResult(null);setAiFilled([]);setAiError("");}}}>
+      <div style={{background:"#1c2d1e",border:"1px solid #2a6e22",borderRadius:"14px 14px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"}}>
+
+        {/* Modal header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}>
+          <div>
+            <div style={{fontSize:"14px",fontWeight:700,color:"#ffffff",letterSpacing:"0.06em"}}>AI AUTO-FILL</div>
+            <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"2px"}}>
+              {aiOnline
+                ?"Online — Gemini 1.5 Flash"
+                :`Offline — Local model${offlineReady?" ready":offlineLoading?" loading…":" unavailable"}`}
+            </div>
+          </div>
+          <button onClick={()=>{setAiModalOpen(false);setAiResult(null);setAiFilled([]);setAiError("");}}
+            style={{background:"none",border:"none",color:"#8a9c8b",fontSize:"20px",cursor:"pointer",lineHeight:1}}>×</button>
+        </div>
+
+        {/* Connectivity badge */}
+        <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px",padding:"8px 10px",borderRadius:"6px",
+          background:aiOnline?"#1a3a1c":"#3a2000",border:"1px solid "+(aiOnline?"#2a6e22":"#c45000")}}>
+          <div style={{width:"8px",height:"8px",borderRadius:"50%",background:aiOnline?"#4caf50":"#ff9800"}}/>
+          <span style={{fontSize:"11px",color:aiOnline?"#a5d6a7":"#ffb74d",fontFamily:mono}}>
+            {aiOnline?"ONLINE — Cloud AI (Gemini)":"OFFLINE — Local model (Transformers.js)"}
+          </span>
+        </div>
+
+        {/* Offline model loading progress */}
+        {!aiOnline&&offlineLoading&&(
+          <div style={{marginBottom:"12px",padding:"10px",background:"#0d1f10",borderRadius:"6px",border:"1px solid #2a6e22"}}>
+            <div style={{fontSize:"11px",color:"#a5d6a7",marginBottom:"6px"}}>{offlineProgress.stage||"Loading…"}</div>
+            <div style={{height:"4px",background:"#2a3d2c",borderRadius:"2px",overflow:"hidden"}}>
+              <div style={{height:"100%",background:"#2a6e22",width:(offlineProgress.percent||0)+"%",transition:"width 0.3s"}}/>
+            </div>
+            <div style={{fontSize:"10px",color:"#4a5c4b",marginTop:"4px"}}>{offlineProgress.percent||0}% — First load downloads ~250 MB and caches locally</div>
+          </div>
+        )}
+
+        {/* Notes textarea */}
+        <div style={{marginBottom:"12px"}}>
+          <label style={{fontSize:"11px",color:"#8a9c8b",display:"block",marginBottom:"6px",letterSpacing:"0.06em"}}>FIELD NOTES</label>
+          <textarea
+            value={aiNotes}
+            onChange={e=>setAiNotes(e.target.value)}
+            placeholder={"Paste or type your field notes here.\n\nExample: 28F fell from ~5m while rock climbing. LOC for ~30 seconds. Now A+Ox3, confused. C/o neck pain. HR 110, RR 20, skin pale/diaphoretic. Possible C-spine injury. Uncontrolled bleeding from scalp lac..."}
+            rows={7}
+            style={{...inputSt,background:"#0d1f10",color:"#e8f5e9",border:"1px solid #2a6e22",resize:"vertical",minHeight:"120px",lineHeight:"1.5",fontSize:"12px"}}
+          />
+        </div>
+
+        {/* Process button */}
+        <button
+          onClick={handleAiProcess}
+          disabled={aiProcessing||!aiNotes.trim()||(!aiOnline&&!offlineReady)}
+          style={{...btnPrimary,width:"100%",padding:"12px",fontSize:"13px",marginBottom:"12px",
+            opacity:(aiProcessing||!aiNotes.trim()||(!aiOnline&&!offlineReady))?0.5:1,
+            background:aiProcessing?"#4a5c4b":"#2a6e22"}}>
+          {aiProcessing?"Processing…":"Process Notes"}
+        </button>
+
+        {/* Error */}
+        {aiError&&(
+          <div style={{padding:"10px 12px",background:"#3d0000",border:"1px solid #b71c1c",borderRadius:"6px",marginBottom:"12px",fontSize:"12px",color:"#ef9a9a"}}>
+            {aiError}
+          </div>
+        )}
+
+        {/* Evac alert banner */}
+        {aiResult&&(isEmergencyEvac||isUrgentEvac)&&(
+          <div style={{padding:"12px 14px",borderRadius:"8px",marginBottom:"12px",
+            background:isEmergencyEvac?"#b71c1c":"#c45000",
+            border:"2px solid "+(isEmergencyEvac?"#ff1744":"#ff6d00")}}>
+            <div style={{fontSize:"14px",fontWeight:700,color:"#ffffff",letterSpacing:"0.06em"}}>
+              {isEmergencyEvac?"🚨 EMERGENCY EVACUATION":"⚠ URGENT EVACUATION"}
+            </div>
+            <div style={{fontSize:"12px",color:"rgba(255,255,255,0.9)",marginTop:"4px"}}>
+              {isEmergencyEvac
+                ?"Call 911 / SAR now. Do not delay evacuation."
+                :"Evacuate within hours. Monitor closely during transport."}
             </div>
           </div>
         )}
 
-        {/* ════ VITALS TAB ════ */}
-        {tab === "vitals" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"8px", padding:"14px", boxShadow:"0 1px 3px rgba(0,0,0,0.04)" }}>
-              <div style={{ fontSize:"10px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"12px" }}>NEW VITALS SET</div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"6px", marginBottom:"12px" }}>
-                {VITAL_FIELDS.map(f => (
-                  <div key={f.key}>
-                    <label style={{ display:"block", fontSize:"9px", color:C.textDim, marginBottom:"4px", textAlign:"center" }}>{f.fullLabel || f.label}</label>
-                    <input value={vitalDraft[f.key] || ""} onChange={e => setVitalDraft(p => ({ ...p, [f.key]:e.target.value }))} placeholder={f.placeholder}
-                      style={{ background:C.raised, border:`1px solid ${C.border}`, borderRadius:"6px", padding:"8px 2px", color:C.text, fontFamily:mono, fontSize:"12px", width:"100%", textAlign:"center", outline:"none", boxSizing:"border-box", WebkitAppearance:"none" }} />
-                  </div>
-                ))}
-              </div>
-              <button onClick={addVitals} style={{ ...btnPrimary, width:"100%" }}>+ LOG VITALS SET</button>
+        {/* Success summary */}
+        {aiResult&&aiFilled.length>0&&(
+          <div style={{padding:"12px",background:"#0d1f10",border:"1px solid #2a6e22",borderRadius:"8px",marginBottom:"12px"}}>
+            <div style={{fontSize:"12px",fontWeight:700,color:"#4caf50",marginBottom:"8px"}}>
+              {aiFilled.length} field{aiFilled.length!==1?"s":""} auto-filled
             </div>
-
-            {/* Vitals trend */}
-            {activeLog.vitals.length > 0 && (
-              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"8px", padding:"12px" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
-                  <span style={{ fontSize:"10px", color:C.textFaint, letterSpacing:"0.12em", fontWeight:700 }}>TREND — {activeLog.vitals.length} SET{activeLog.vitals.length !== 1 ? "S" : ""}</span>
-                  <button onClick={() => patchLog(activeLog.id, { vitals:[] })} style={{ background:"transparent", border:"none", color:C.danger, fontSize:"10px", cursor:"pointer", fontFamily:mono }}>CLEAR ALL</button>
-                </div>
-                <div style={{ overflowX:"auto" }}>
-                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"11px" }}>
-                    <thead>
-                      <tr>{["TIME", ...VITAL_FIELDS.map(f => f.label)].map(h => (
-                        <th key={h} style={{ padding:"5px 6px", color:C.textDim, fontWeight:700, textAlign:"center", borderBottom:`1px solid ${C.border}`, fontSize:"9px", letterSpacing:"0.06em" }}>{h}</th>
-                      ))}</tr>
-                    </thead>
-                    <tbody>
-                      {[...activeLog.vitals].reverse().map((e, i) => (
-                        <tr key={i} style={{ background: i % 2 === 0 ? C.raised : C.surface }}>
-                          <td style={{ padding:"7px 6px", color:C.textDim, fontSize:"10px", textAlign:"center" }}>{e.time}</td>
-                          {VITAL_FIELDS.map(f => (
-                            <td key={f.key} style={{ padding:"7px 6px", color: e[f.key] ? C.text : C.textFaint, textAlign:"center", fontWeight: e[f.key] ? 600 : 400 }}>{e[f.key] || "—"}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* SCTM ref */}
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"8px", padding:"12px" }}>
-              <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"10px" }}>SKIN COLOR, TEMPERATURE & MOISTURE (SCTM)</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
-                {[{l:"Normal",v:"Pink / Warm / Dry",c:C.accent},{l:"Shock",v:"Pale / Cool / Clammy",c:C.danger},{l:"Heat ill.",v:"Red / Hot / Wet or Dry",c:C.warn},{l:"Hypo.",v:"Gray / Cold / Dry",c:C.blue}].map(s => (
-                  <div key={s.l} style={{ padding:"9px 11px", background:C.raised, borderRadius:"6px", borderLeft:`3px solid ${s.c}` }}>
-                    <div style={{ fontSize:"9px", color:C.textDim, marginBottom:"3px" }}>{s.l}</div>
-                    <div style={{ fontSize:"11px", color:s.c, fontWeight:600 }}>{s.v}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Normal ranges */}
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"8px", padding:"12px" }}>
-              <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"8px" }}>NORMAL ADULT RANGES</div>
-              {[{l:"Heart Rate (HR)",n:"60–100 bpm",b:"<50 or >130"},{l:"Resp. Rate (RR)",n:"12–20 brpm",b:"<8 or >24"},{l:"Systolic BP",n:">90 mmHg",b:"<80"},{l:"SpO2",n:">94%",b:"<90%"},{l:"Cap. Refill (CRT)",n:"<2 sec",b:">2 sec"}].map(r => (
-                <div key={r.l} style={{ display:"flex", alignItems:"center", padding:"7px 0", borderBottom:`1px solid ${C.raised}`, gap:"10px" }}>
-                  <span style={{ fontSize:"11px", color:C.textDim, width:"50px", flexShrink:0 }}>{r.l}</span>
-                  <span style={{ fontSize:"12px", color:C.accent, flex:1, fontWeight:600 }}>{r.n}</span>
-                  <span style={{ fontSize:"10px", color:C.danger }}>{r.b}</span>
+            <div style={{maxHeight:"160px",overflowY:"auto"}}>
+              {aiFilled.map((f,i)=>(
+                <div key={i} style={{fontSize:"11px",color:"#8a9c8b",marginBottom:"3px",display:"flex",gap:"6px"}}>
+                  <span style={{color:"#4caf50",flexShrink:0}}>✓</span>
+                  <span><span style={{color:"#a5d6a7"}}>{f.stepId}/{f.key}</span>{" — "}{String(f.val).slice(0,50)}{String(f.val).length>50?"…":""}</span>
                 </div>
               ))}
             </div>
+            <button onClick={()=>{setAiModalOpen(false);setAiResult(null);setAiFilled([]);setAiError("");setAiNotes("");}}
+              style={{...btnPrimary,width:"100%",marginTop:"10px",padding:"10px",fontSize:"12px"}}>
+              Done — View Filled Fields
+            </button>
           </div>
         )}
 
-        {/* ════ PROTOCOLS TAB ════ */}
-        {tab === "protocols" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <input value={protoSearch} onChange={e => setProtoSearch(e.target.value)} placeholder="Search protocols..." style={inputSt} />
-            {filteredProtocols.map(p => {
-              const isOpen = openProtocol === p.id;
-              const fc = flagColor(p.flag);
-              return (
-                <div key={p.id} style={{ background:C.surface, border:`1px solid ${isOpen ? fc+"60" : C.border}`, borderRadius:"8px", overflow:"hidden" }}>
-                  <button onClick={() => setOpenProtocol(isOpen ? null : p.id)} style={{ width:"100%", padding:"14px", background:"transparent", border:"none", display:"flex", alignItems:"center", gap:"10px", cursor:"pointer", textAlign:"left", WebkitAppearance:"none" }}>
-                    <span style={{ fontSize:"8px", fontWeight:700, letterSpacing:"0.12em", color:fc, background:fc+"18", padding:"3px 7px", borderRadius:"3px", flexShrink:0 }}>{p.flag}</span>
-                    <span style={{ fontSize:"13px", fontWeight:700, color:C.text, flex:1 }}>{p.title}</span>
-                    <span style={{ color:C.textFaint, fontSize:"12px" }}>{isOpen ? "▲" : "▼"}</span>
-                  </button>
-                  {isOpen && (
-                    <div style={{ padding:"0 14px 16px" }}>
-                      <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"8px" }}>RECOGNIZE</div>
-                      {p.signs.map((s,i) => <div key={i} style={{ display:"flex", gap:"8px", alignItems:"flex-start", padding:"5px 0", borderBottom:`1px solid ${C.raised}` }}><span style={{ color:C.warn, flexShrink:0, marginTop:"1px" }}>◆</span><span style={{ fontSize:"12px", color:C.text, lineHeight:"1.5" }}>{s}</span></div>)}
-                      <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", margin:"12px 0 8px" }}>TREAT</div>
-                      {p.tx.map((t,i) => <div key={i} style={{ display:"flex", gap:"8px", alignItems:"flex-start", padding:"7px 9px", marginBottom:"4px", background:C.raised, borderRadius:"5px", borderLeft:`3px solid ${fc}50` }}><span style={{ color:fc, flexShrink:0, fontSize:"10px", marginTop:"2px", fontWeight:700, minWidth:"14px" }}>{i+1}</span><span style={{ fontSize:"12px", color:C.text, lineHeight:"1.5" }}>{t}</span></div>)}
-                    </div>
-                  )}
+        {aiFilled.length===0&&aiResult&&!aiError&&(
+          <div style={{padding:"10px",background:"#1a3a1c",borderRadius:"6px",fontSize:"12px",color:"#8a9c8b",textAlign:"center"}}>
+            No mappable fields found in notes. Try providing more clinical detail.
+          </div>
+        )}
+
+        <div style={{fontSize:"10px",color:"#4a5c4b",textAlign:"center",marginTop:"8px",lineHeight:"1.4"}}>
+          AI output is a decision-support tool only. Always apply WFR training and clinical judgment.
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
+      {aiModal}
+      <div style={{maxWidth:480,margin:"0 auto"}}>
+
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"12px"}}>
+          <button onClick={()=>setScreen("home")} style={{background:"none",border:"none",color:"#2a6e22",fontFamily:mono,fontSize:"13px",cursor:"pointer",padding:0}}>← Home</button>
+          <LogInput value={log.name} onSave={v=>patchLog(log.id,{name:v})} placeholder="Log name / patient ID" style={{...inputSt,flex:1,fontSize:"13px"}}/>
+          <button onClick={()=>{setAiModalOpen(true);setAiResult(null);setAiFilled([]);setAiError("");}}
+            style={{background:"#2a6e22",border:"none",borderRadius:"8px",padding:"8px 10px",color:"#ffffff",
+              fontFamily:mono,fontSize:"11px",fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",
+              letterSpacing:"0.04em",WebkitAppearance:"none"}}>
+            AI Fill
+          </button>
+        </div>
+
+        {/* Location */}
+        <div style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",padding:"8px 12px",marginBottom:"10px",fontSize:"11px",color:"#4a5c4b",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>{locating?"📍 Getting location…":log.location.display||"📍 Location not recorded"}</span>
+          <button onClick={()=>setRescuePanelOpen(!rescuePanelOpen)} style={{background:"none",border:"none",color:"#1a5276",fontFamily:mono,fontSize:"11px",cursor:"pointer"}}>{rescuePanelOpen?"▲ Rescue":"▼ Rescue"}</button>
+        </div>
+
+        {rescuePanelOpen&&(
+          <div style={{background:"#eaf2fb",border:"1px solid #1a5276",borderRadius:"8px",padding:"12px",marginBottom:"10px"}}>
+            <div style={{fontSize:"11px",fontWeight:700,color:"#1a5276",marginBottom:"8px",letterSpacing:"0.08em"}}>RESCUE LOCATION DETAILS</div>
+            {[{key:"landmark",label:"Nearest landmark",placeholder:"trail junction, peak name, lake"},
+              {key:"trail",label:"Trail / Route",placeholder:"trail name and number"},
+              {key:"terrain",label:"Terrain description",placeholder:"open meadow, dense forest, cliff band"},
+              {key:"lookFor",label:"Look for / Identify us by",placeholder:"color of gear, signal fire, waving"},
+            ].map(({key,label,placeholder})=>(
+              <div key={key} style={{marginBottom:"6px"}}>
+                <label style={{fontSize:"11px",color:"#4a5c4b",display:"block",marginBottom:"2px"}}>{label}</label>
+                <LogInput value={(log.rescueLocation||{})[key]||""} onSave={v=>patchLog(log.id,{rescueLocation:{...log.rescueLocation,[key]:v}})} placeholder={placeholder} style={{...inputSt,fontSize:"12px"}}/>
+              </div>
+            ))}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px"}}>
+              <div>
+                <label style={{fontSize:"11px",color:"#4a5c4b",display:"block",marginBottom:"2px"}}>Helicopter LZ</label>
+                <select value={(log.rescueLocation||{}).lzAvailable||""} onChange={e=>patchLog(log.id,{rescueLocation:{...log.rescueLocation,lzAvailable:e.target.value}})} style={{...inputSt,fontSize:"12px"}}>
+                  {["—","Yes","No"].map(o=><option key={o}>{o}</option>)}
+                </select>
+              </div>
+              {log.rescueLocation?.lzAvailable==="Yes"&&(
+                <div>
+                  <label style={{fontSize:"11px",color:"#4a5c4b",display:"block",marginBottom:"2px"}}>LZ Notes</label>
+                  <LogInput value={(log.rescueLocation||{}).lzNotes||""} onSave={v=>patchLog(log.id,{rescueLocation:{...log.rescueLocation,lzNotes:v}})} placeholder="size, surface, obstacles" style={{...inputSt,fontSize:"12px"}}/>
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ════ AILMENTS TAB ════ */}
-        {tab === "ailments" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-            <input value={ailSearch} onChange={e => setAilSearch(e.target.value)} placeholder="Search by condition or symptom..." style={inputSt} />
-            <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
-              {AILMENT_CATS.map(cat => (
-                <button key={cat} onClick={() => setActiveCat(cat)} style={{ padding:"5px 9px", border:`1px solid ${activeCat===cat ? C.accent : C.border}`, borderRadius:"4px", background: activeCat===cat ? C.accentLight : "transparent", color: activeCat===cat ? C.accent : C.textDim, fontFamily:mono, fontSize:"9px", fontWeight:700, letterSpacing:"0.05em", cursor:"pointer", whiteSpace:"nowrap", WebkitAppearance:"none" }}>{cat}</button>
-              ))}
+              )}
             </div>
-            <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.1em" }}>{filteredAilments.length} CONDITION{filteredAilments.length !== 1 ? "S" : ""}</div>
-            {filteredAilments.map(a => {
-              const isOpen = openAilment === a.id;
-              const sc = a.severity === "high" ? C.danger : a.severity === "moderate" ? C.warn : C.accent;
-              const sb = a.severity === "high" ? C.dangerLight : a.severity === "moderate" ? C.warnLight : C.accentLight;
-              return (
-                <div key={a.id} style={{ background:C.surface, border:`1px solid ${isOpen ? sc+"60" : C.border}`, borderRadius:"8px", overflow:"hidden" }}>
-                  <button onClick={() => setOpenAilment(isOpen ? null : a.id)} style={{ width:"100%", padding:"13px 14px", background:"transparent", border:"none", display:"flex", alignItems:"center", gap:"10px", cursor:"pointer", textAlign:"left", WebkitAppearance:"none" }}>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:"8px", color:C.textFaint, fontWeight:700, letterSpacing:"0.1em", marginBottom:"3px" }}>{a.cat}</div>
-                      <span style={{ fontSize:"13px", fontWeight:700, color:C.text }}>{a.title}</span>
-                    </div>
-                    <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"5px", flexShrink:0 }}>
-                      <div style={{ display:"flex", gap:"4px" }}>
-                        <span style={{ fontSize:"8px", fontWeight:700, color:sc, background:sb, padding:"2px 6px", borderRadius:"3px" }}>{a.severity.toUpperCase()}</span>
-                        {a.evac && <span style={{ fontSize:"8px", fontWeight:700, color:C.purple, background:C.purpleLight, padding:"2px 5px", borderRadius:"3px" }}>EVAC</span>}
-                      </div>
-                      <span style={{ color:C.textFaint, fontSize:"12px" }}>{isOpen ? "▲" : "▼"}</span>
-                    </div>
-                  </button>
-                  {isOpen && (
-                    <div style={{ padding:"0 14px 16px" }}>
-                      {a.img && <AilmentIllustration id={a.img} />}
-                      <div style={{ marginBottom:"12px" }}>
-                        <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"8px" }}>RECOGNIZE</div>
-                        {a.signs.map((s,i) => <div key={i} style={{ display:"flex", gap:"8px", alignItems:"flex-start", padding:"5px 0", borderBottom:`1px solid ${C.raised}` }}><span style={{ color:sc, flexShrink:0, fontSize:"9px", marginTop:"3px" }}>◆</span><span style={{ fontSize:"12px", color:C.text, lineHeight:"1.5" }}>{s}</span></div>)}
-                      </div>
-                      <div style={{ marginBottom: a.avoid ? "10px" : 0 }}>
-                        <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"8px" }}>TREAT</div>
-                        {a.tx.map((t,i) => <div key={i} style={{ display:"flex", gap:"8px", alignItems:"flex-start", padding:"7px 9px", marginBottom:"4px", background:C.raised, borderRadius:"5px", borderLeft:`3px solid ${sc}50` }}><span style={{ color:sc, flexShrink:0, fontSize:"10px", marginTop:"2px", fontWeight:700, minWidth:"14px" }}>{i+1}</span><span style={{ fontSize:"12px", color:C.text, lineHeight:"1.5" }}>{t}</span></div>)}
-                      </div>
-                      {a.avoid && <div style={{ padding:"9px 11px", background:C.dangerLight, border:`1px solid ${C.danger}25`, borderRadius:"6px", marginBottom:"8px" }}><span style={{ fontSize:"9px", color:C.danger, fontWeight:700, letterSpacing:"0.08em" }}>⚠ AVOID: </span><span style={{ fontSize:"11px", color:C.danger, opacity:0.8, lineHeight:"1.5" }}>{a.avoid}</span></div>}
-                      {a.evac && <div style={{ padding:"8px 11px", background:C.purpleLight, border:`1px solid ${C.purple}25`, borderRadius:"6px", fontSize:"10px", color:C.purple, fontWeight:700, letterSpacing:"0.06em" }}>↑ EVACUATION INDICATED</div>}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
           </div>
         )}
 
-        {/* ════ EVAC TAB ════ */}
-        {tab === "evac" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
-            {[
-              { label:"EMERGENCY EVACUATION", sub:"Fastest possible — call for help now", color:C.danger, items:EVAC_TRIGGERS.emergency },
-              { label:"URGENT EVACUATION",    sub:"Within hours — monitor closely en route", color:C.warn, items:EVAC_TRIGGERS.urgent },
-              { label:"MONITOR / PLANNED",    sub:"May walk out — reassess frequently", color:C.accent, items:EVAC_TRIGGERS.monitor },
-            ].map(cat => (
-              <div key={cat.label} style={{ background:C.surface, border:`1px solid ${cat.color}35`, borderRadius:"8px", overflow:"hidden" }}>
-                <div style={{ padding:"12px 14px", background:cat.color+"0f", borderBottom:`1px solid ${cat.color}20` }}>
-                  <div style={{ fontSize:"12px", fontWeight:700, color:cat.color, letterSpacing:"0.04em" }}>{cat.label}</div>
-                  <div style={{ fontSize:"10px", color:C.textDim, marginTop:"2px" }}>{cat.sub}</div>
+        {/* Tabs */}
+        <div style={{display:"flex",gap:"6px",marginBottom:"12px"}}>
+          {[{key:"pas",label:"Assessment"},{key:"vitals",label:"Vitals"},{key:"reports",label:"Reports"},{key:"ref",label:"Reference"}].map(t=>(
+            <button key={t.key} onClick={()=>setTab(t.key)}
+              style={{flex:1,background:tab===t.key?"#2a6e22":"#edf0ea",color:tab===t.key?"#ffffff":"#4a5c4b",border:"none",borderRadius:"8px",padding:"8px 4px",fontFamily:mono,fontSize:"11px",fontWeight:tab===t.key?"700":"400",cursor:"pointer",WebkitAppearance:"none"}}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* PAS TAB */}
+        {tab==="pas"&&(
+          <div>
+            <div style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"10px",padding:"12px",marginBottom:"12px"}}>
+              <PatientAssessmentTriangle activeStep={activeStep} onStepClick={setActiveStep}/>
+            </div>
+            <StepPills steps={STEPS} activeStep={activeStep} checks={log.checks} onStepClick={setActiveStep}/>
+            <div style={{background:"#ffffff",border:"2px solid "+currentStep.color,borderRadius:"10px",padding:"14px"}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:"10px",marginBottom:"12px"}}>
+                <span style={{fontSize:"10px",fontWeight:700,letterSpacing:"0.1em",color:currentStep.color}}>{currentStep.tag}</span>
+                <span style={{fontSize:"16px",fontWeight:700,color:"#1c2d1e"}}>Step {activeStep+1}: {currentStep.label}</span>
+              </div>
+              {currentStep.checks.length>0&&(
+                <div style={{marginBottom:"14px"}}>
+                  <div style={{fontSize:"11px",fontWeight:700,color:"#4a5c4b",letterSpacing:"0.08em",marginBottom:"6px"}}>CHECKLIST</div>
+                  {currentStep.checks.map((item,idx)=>{
+                    const checked=!!((log.checks[currentStep.id]||{})[idx]);
+                    return (
+                      <label key={idx} style={{display:"flex",alignItems:"flex-start",gap:"10px",marginBottom:"8px",cursor:"pointer"}}>
+                        <div onClick={()=>setCheck(log.id,currentStep.id,idx,!checked)}
+                          style={{width:"20px",height:"20px",minWidth:"20px",borderRadius:"4px",marginTop:"1px",
+                            background:checked?currentStep.color:"#edf0ea",
+                            border:"2px solid "+(checked?currentStep.color:"#cdd4c7"),
+                            display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                          {checked&&<span style={{color:"#ffffff",fontSize:"13px",lineHeight:1}}>✓</span>}
+                        </div>
+                        <span style={{fontSize:"13px",color:checked?"#8a9c8b":"#1c2d1e",textDecoration:checked?"line-through":"none",lineHeight:"1.4"}}>{item}</span>
+                      </label>
+                    );
+                  })}
                 </div>
-                <div style={{ padding:"10px 14px 14px" }}>
-                  {cat.items.map((item,i) => <div key={i} style={{ display:"flex", gap:"10px", alignItems:"flex-start", padding:"6px 0", borderBottom:`1px solid ${C.raised}` }}><span style={{ color:cat.color, flexShrink:0, fontSize:"8px", marginTop:"4px" }}>■</span><span style={{ fontSize:"12px", color:C.text, lineHeight:"1.5" }}>{item}</span></div>)}
+              )}
+              {currentStep.fields.length>0&&(
+                <div>
+                  <div style={{fontSize:"11px",fontWeight:700,color:"#4a5c4b",letterSpacing:"0.08em",marginBottom:"8px"}}>FINDINGS</div>
+                  {currentStep.fields.map(f=>{
+                    const val=((log.fields[currentStep.id]||{})[f.key])||"";
+                    const labelEl=<label style={{display:"block",fontSize:"12px",color:"#4a5c4b",marginBottom:"4px"}}>{f.label}</label>;
+                    if(f.type==="pain") return(
+                      <div key={f.key} style={{marginBottom:"10px"}}>{labelEl}<PainScale value={val} onChange={v=>setField(log.id,currentStep.id,f.key,v)}/></div>
+                    );
+                    if(f.type==="select") return(
+                      <div key={f.key} style={{marginBottom:"8px"}}>{labelEl}
+                        <select value={val} onChange={e=>setField(log.id,currentStep.id,f.key,e.target.value)} style={{...inputSt,cursor:"pointer"}}>
+                          {f.options.map(o=><option key={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    );
+                    if(f.type==="textarea") return(
+                      <div key={f.key} style={{marginBottom:"8px"}}>{labelEl}
+                        <LogTextarea value={val} onSave={v=>setField(log.id,currentStep.id,f.key,v)} placeholder={f.placeholder} rows={3} style={{...inputSt,resize:"vertical",minHeight:"64px"}}/>
+                      </div>
+                    );
+                    return(
+                      <div key={f.key} style={{marginBottom:"8px"}}>{labelEl}
+                        <LogInput type={f.type||"text"} value={val} onSave={v=>setField(log.id,currentStep.id,f.key,v)} placeholder={f.placeholder} style={inputSt}/>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{display:"flex",gap:"8px",marginTop:"14px"}}>
+                {activeStep>0&&(
+                  <button onClick={()=>setActiveStep(s=>s-1)}
+                    style={{flex:1,background:"#edf0ea",border:"none",borderRadius:"8px",padding:"10px",fontFamily:mono,fontSize:"12px",color:"#4a5c4b",cursor:"pointer",WebkitAppearance:"none"}}>
+                    ← Previous
+                  </button>
+                )}
+                {activeStep<STEPS.length-1&&(
+                  <button onClick={()=>setActiveStep(s=>s+1)}
+                    style={{flex:1,background:currentStep.color,border:"none",borderRadius:"8px",padding:"10px",fontFamily:mono,fontSize:"12px",color:"#ffffff",fontWeight:700,cursor:"pointer",WebkitAppearance:"none"}}>
+                    Next Step →
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VITALS TAB */}
+        {tab==="vitals"&&(
+          <div>
+            {log.vitals.map((v,i)=>(
+              <div key={i} style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",padding:"12px",marginBottom:"8px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}}>
+                  <div style={{fontSize:"12px",fontWeight:700,color:"#1c2d1e"}}>Set {i+1} — {v.time||"—"}</div>
+                  <button onClick={()=>removeVital(log.id,i)} style={{background:"none",border:"none",color:"#8a9c8b",cursor:"pointer",fontSize:"14px"}}>×</button>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px"}}>
+                  {VITAL_FIELDS.map(vf=>(
+                    <div key={vf.key}>
+                      <div style={{fontSize:"10px",color:"#8a9c8b",marginBottom:"1px"}}>{vf.fullLabel}</div>
+                      <div style={{fontSize:"13px",color:v[vf.key]?"#1c2d1e":"#8a9c8b",fontFamily:mono}}>{v[vf.key]||"—"}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:"8px", padding:"14px" }}>
-              <div style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.12em", marginBottom:"10px" }}>FIELD RULES</div>
-              {["When in doubt — evacuate","Declining vitals = emergency evac","Unstable AMS = immediate evac","No diagnosis needed to evacuate","Document vitals + time before leaving"].map((r,i) => (
-                <div key={i} style={{ padding:"9px 11px", marginBottom:"5px", background:C.raised, borderRadius:"6px", borderLeft:`3px solid ${C.accent}45`, fontSize:"12px", color:C.text, lineHeight:"1.5" }}>{r}</div>
+            <div style={{background:"#ffffff",border:"2px dashed #cdd4c7",borderRadius:"8px",padding:"12px",marginBottom:"8px"}}>
+              <div style={{fontSize:"12px",fontWeight:700,color:"#4a5c4b",marginBottom:"10px",letterSpacing:"0.06em"}}>NEW VITAL SET</div>
+              <div style={{marginBottom:"8px"}}>
+                <label style={{fontSize:"11px",color:"#4a5c4b",display:"block",marginBottom:"3px"}}>Time</label>
+                <input value={vitalDraft.time||""} onChange={e=>setVitalDraft(v=>({...v,time:e.target.value}))} placeholder={nowTime()} style={{...inputSt,fontSize:"12px"}}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px",marginBottom:"10px"}}>
+                {VITAL_FIELDS.map(vf=>(
+                  <div key={vf.key}>
+                    <label style={{fontSize:"11px",color:"#4a5c4b",display:"block",marginBottom:"2px"}}>{vf.label} — {vf.fullLabel}</label>
+                    <input value={vitalDraft[vf.key]||""} onChange={e=>setVitalDraft(v=>({...v,[vf.key]:e.target.value}))} placeholder={vf.placeholder} style={{...inputSt,fontSize:"12px"}}/>
+                  </div>
+                ))}
+              </div>
+              <button onClick={()=>addVital(log.id)} style={{...btnPrimary,width:"100%",fontSize:"12px",padding:"10px"}}>+ ADD VITAL SET</button>
+            </div>
+            {log.vitals.length>=2&&(
+              <div style={{background:"#e6f4e2",border:"1px solid #2a6e22",borderRadius:"8px",padding:"10px 12px",fontSize:"11px",color:"#2a6e22"}}>
+                ✓ {log.vitals.length} vital sets recorded — trend data available for reports.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* REPORTS TAB */}
+        {tab==="reports"&&(
+          <div>
+            <div style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",marginBottom:"12px",overflow:"hidden"}}>
+              <div style={{background:"#ffebee",padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{fontSize:"13px",fontWeight:700,color:"#b71c1c"}}>📞 Verbal SOAP Report</div>
+                  <div style={{fontSize:"11px",color:"#4a5c4b",marginTop:"1px"}}>Radio / rescue call script</div>
+                </div>
+                <button onClick={()=>copyText(verbalReport,setVerbalCopy)}
+                  style={{background:"#b71c1c",border:"none",borderRadius:"6px",padding:"6px 12px",color:"#ffffff",fontFamily:mono,fontSize:"11px",fontWeight:700,cursor:"pointer",WebkitAppearance:"none"}}>
+                  {verbalCopy||"Copy"}
+                </button>
+              </div>
+              <pre style={{margin:0,padding:"12px 14px",fontSize:"11px",fontFamily:mono,color:"#1c2d1e",whiteSpace:"pre-wrap",lineHeight:"1.6",maxHeight:"320px",overflowY:"auto",background:"#ffffff"}}>
+                {verbalReport}
+              </pre>
+            </div>
+            <div style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",overflow:"hidden"}}>
+              <div style={{background:"#eaf2fb",padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{fontSize:"13px",fontWeight:700,color:"#1a5276"}}>📋 Written SOAP Note</div>
+                  <div style={{fontSize:"11px",color:"#4a5c4b",marginTop:"1px"}}>Structured patient record</div>
+                </div>
+                <button onClick={()=>copyText(writtenReport,setWrittenCopy)}
+                  style={{background:"#1a5276",border:"none",borderRadius:"6px",padding:"6px 12px",color:"#ffffff",fontFamily:mono,fontSize:"11px",fontWeight:700,cursor:"pointer",WebkitAppearance:"none"}}>
+                  {writtenCopy||"Copy"}
+                </button>
+              </div>
+              <pre style={{margin:0,padding:"12px 14px",fontSize:"11px",fontFamily:mono,color:"#1c2d1e",whiteSpace:"pre-wrap",lineHeight:"1.6",maxHeight:"320px",overflowY:"auto",background:"#ffffff"}}>
+                {writtenReport}
+              </pre>
+            </div>
+          </div>
+        )}
+
+        {/* REFERENCE TAB */}
+        {tab==="ref"&&(
+          <div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"8px"}}>
+              {[{label:"Protocols",sub:PROTOCOLS.length+" critical guides",color:"#b71c1c",bg:"#ffebee",border:"#b71c1c",onClick:()=>setScreen("protocols")},
+                {label:"Ailments",sub:AILMENTS.length+" conditions",color:"#1a5276",bg:"#eaf2fb",border:"#1a5276",onClick:()=>setScreen("ailments")},
+                {label:"Evac Guide",sub:"Emergency / urgent / monitor",color:"#6a1b9a",bg:"#f3e5f5",border:"#6a1b9a",onClick:()=>setScreen("evac")},
+                {label:"About",sub:"Version & disclaimer",color:"#4a5c4b",bg:"#edf0ea",border:"#cdd4c7",onClick:()=>setScreen("about")},
+              ].map(tile=>(
+                <button key={tile.label} onClick={tile.onClick}
+                  style={{background:tile.bg,border:"1px solid "+tile.border,borderRadius:"8px",padding:"14px 10px",textAlign:"left",cursor:"pointer",WebkitAppearance:"none"}}>
+                  <div style={{fontSize:"12px",fontWeight:700,color:tile.color}}>{tile.label}</div>
+                  <div style={{fontSize:"10px",color:"#8a9c8b",marginTop:"2px"}}>{tile.sub}</div>
+                </button>
               ))}
+            </div>
+            <div style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",padding:"12px",marginTop:"4px"}}>
+              <div style={{fontSize:"11px",fontWeight:700,color:"#4a5c4b",letterSpacing:"0.08em",marginBottom:"6px"}}>ENCOUNTER NOTES</div>
+              <LogTextarea value={log.notes} onSave={v=>patchLog(log.id,{notes:v})} placeholder="Free-text notes, observations, anything not captured above..." rows={5} style={{...inputSt,resize:"vertical",minHeight:"80px"}}/>
             </div>
           </div>
         )}
 
       </div>
-
-      <div style={{ padding:"8px 16px", borderTop:`1px solid ${C.border}`, background:C.surface, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <span style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.1em" }}>NOLS WFR REFERENCE</span>
-        <span style={{ fontSize:"9px", color:C.textFaint, letterSpacing:"0.1em" }}>NOT A SUBSTITUTE FOR TRAINING</span>
-      </div>
-    </Wrap>
+    </div>
   );
 }
