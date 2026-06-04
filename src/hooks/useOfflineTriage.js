@@ -1,93 +1,40 @@
 "use client";
-
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useRef, useCallback, useState, useEffect } from "react";
 
 /**
- * useOfflineTriage — manages the offline Transformers.js Web Worker.
- *
- * Returns:
- *   runOffline(notes: string) → Promise<triageJSON>
- *   isLoading: bool
- *   isReady: bool
- *   progress: { stage: string, percent: number }
+ * Hook for offline triage via Web Worker loaded from /public/workers/.
+ * The worker uses Transformers.js loaded from CDN — no bundling needed.
  */
 export function useOfflineTriage() {
   const workerRef = useRef(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState({ stage: "", percent: 0 });
 
-  // Pending promise resolvers — keyed by message type
-  const pendingRef = useRef(null);
-
   useEffect(() => {
-    // Only create worker on client
     if (typeof window === "undefined") return;
-
-    let worker;
-    try {
-      worker = new Worker(
-        new URL("../workers/offlineTriage.worker.js", import.meta.url),
-        { type: "module" }
-      );
-    } catch (err) {
-      console.warn("Could not create offline triage worker:", err);
-      return;
-    }
-
+    const worker = new Worker("/workers/offlineTriage.worker.js");
     workerRef.current = worker;
-
-    worker.onmessage = (event) => {
-      const { type, ...rest } = event.data;
-
-      if (type === "progress") {
-        setProgress({ stage: rest.stage, percent: rest.percent });
-        if (rest.percent < 100) setIsLoading(true);
-      } else if (type === "ready") {
-        setIsLoading(false);
-        setIsReady(true);
-        setProgress({ stage: "Model ready", percent: 100 });
-      } else if (type === "result") {
-        setIsLoading(false);
-        if (pendingRef.current) {
-          pendingRef.current.resolve(rest.triage);
-          pendingRef.current = null;
-        }
-      } else if (type === "error") {
-        setIsLoading(false);
-        if (pendingRef.current) {
-          pendingRef.current.reject(new Error(rest.message));
-          pendingRef.current = null;
-        }
-      }
+    worker.onmessage = (e) => {
+      const { type, stage, percent } = e.data;
+      if (type === "progress") setProgress({ stage: stage || "", percent: percent || 0 });
+      if (type === "ready") { setIsReady(true); setIsLoading(false); }
+      if (type === "error") setIsLoading(false);
     };
-
-    worker.onerror = (err) => {
-      setIsLoading(false);
-      if (pendingRef.current) {
-        pendingRef.current.reject(new Error("Worker error: " + err.message));
-        pendingRef.current = null;
-      }
-    };
-
-    // Kick off model loading immediately
-    setIsLoading(true);
     worker.postMessage({ type: "init" });
-
-    return () => {
-      worker.terminate();
-      workerRef.current = null;
-    };
+    setIsLoading(true);
+    return () => { worker.terminate(); workerRef.current = null; };
   }, []);
 
   const runOffline = useCallback((notes) => {
     return new Promise((resolve, reject) => {
-      if (!workerRef.current) {
-        reject(new Error("Offline worker not available"));
-        return;
-      }
-      pendingRef.current = { resolve, reject };
-      setIsLoading(true);
+      if (!workerRef.current) return reject(new Error("Worker not available"));
+      const handler = (e) => {
+        const { type } = e.data;
+        if (type === "result") { workerRef.current.removeEventListener("message", handler); resolve(e.data.triage); }
+        if (type === "error") { workerRef.current.removeEventListener("message", handler); reject(new Error(e.data.message)); }
+      };
+      workerRef.current.addEventListener("message", handler);
       workerRef.current.postMessage({ type: "triage", payload: { notes } });
     });
   }, []);

@@ -216,87 +216,87 @@ const PROTOCOLS = [
 ];
 
 const AILMENTS = [
-  { id:"snakebite", cat:"BITES & STINGS", severity:"high", evac:true,
+  { id:"snakebite", cat:"BITES & STINGS", severity:"high", evac:true, photoAssess:true,
     title:"Snakebite",
     signs:["1–2 fang puncture marks","Local pain, swelling, bruising within minutes","Nausea, vomiting, metallic taste","Numbness of mouth/face","Severe: low BP, neuro deficits, coagulopathy"],
     tx:["Keep patient calm and still","Immobilize bitten limb at/below heart","Remove rings/watches near bite","Mark swelling border + time every 15 min","Do NOT cut, suck, tourniquet, or ice","Evacuate immediately — antivenom is definitive"],
     avoid:"No tourniquet. No incisions. No ice." },
-  { id:"spider", cat:"BITES & STINGS", severity:"moderate", evac:true,
+  { id:"spider", cat:"BITES & STINGS", severity:"moderate", evac:true, photoAssess:true,
     title:"Spider Bite (Black Widow / Brown Recluse)",
     signs:["Black widow: muscle cramps, rigidity, severe abdominal pain within 1 hr","Brown recluse: painless then spreading necrotic ulcer 24–72 h","Both: nausea, headache, low-grade fever"],
     tx:["Clean wound with soap and water","Ice pack 10 min on/off for black widow","Diphenhydramine for local reaction","Mark lesion border + time","Evacuate — both can progress severely"],
     avoid:"Do not squeeze wound. No heat on brown recluse bite." },
-  { id:"tick", cat:"BITES & STINGS", severity:"low", evac:false,
+  { id:"tick", cat:"BITES & STINGS", severity:"low", evac:false, photoAssess:false,
     title:"Tick Removal & Disease Watch",
     signs:["Tick found embedded","Bull's-eye rash (Lyme) hours–days later","Flu symptoms post-removal","Tick paralysis: ascending weakness (rare)"],
     tx:["Tweezers: grasp close to skin, pull straight out steadily","Clean site with antiseptic","Save tick in sealed bag","Watch for rash/flu symptoms 3–30 days","Seek care if rash appears"],
     avoid:"No Vaseline, nail polish, or heat." },
-  { id:"bee", cat:"BITES & STINGS", severity:"low", evac:false,
+  { id:"bee", cat:"BITES & STINGS", severity:"low", evac:false, photoAssess:true,
     title:"Bee / Wasp Sting",
     signs:["Immediate burning pain","Local swelling, redness, itching","Watch for: throat tightness, SOB, dizziness"],
     tx:["Scrape stinger out — do not pinch","Ice pack to reduce swelling","Diphenhydramine 25–50 mg if available","Monitor 30 min for anaphylaxis","Systemic signs → treat as anaphylaxis"],
     avoid:"Do not pinch stinger — injects more venom." },
-  { id:"burn_thermal", cat:"BURNS", severity:"moderate", evac:true,
+  { id:"burn_thermal", cat:"BURNS", severity:"moderate", evac:true, photoAssess:false,
     title:"Thermal Burn",
     signs:["Superficial (1st): red, dry, painful — no blisters","Partial thickness (2nd): blisters, very painful, wet","Full thickness (3rd): white/brown/black, leathery — painless","Inhalation: singed nasal hair, hoarse voice, soot"],
     tx:["Cool with room-temp water 10–20 min — no ice","Remove jewelry/clothing if not adhered","Cover loosely with clean dry dressing","Partial thickness > palm size OR face/hands/genitals/joints → evac","Inhalation suspected → immediate evacuation","No blisters popped; no butter/oils"],
     avoid:"No ice, butter, toothpaste, or oil." },
-  { id:"sprain", cat:"FALLS & FRACTURES", severity:"low", evac:false,
+  { id:"sprain", cat:"FALLS & FRACTURES", severity:"low", evac:false, photoAssess:false,
     title:"Sprain / Strain",
     signs:["Mechanism: twist, overstretch","Pain, swelling, bruising around joint","Intact weight-bearing","No bony deformity or crepitus"],
     tx:["RICE: Rest, Ice 20 min on/off, Compression, Elevate","NSAIDs if available","Reassess weight-bearing after 20 min rest","Able to walk with minimal pain — may continue with support","Unable to weight-bear, deformity → splint + evacuate"],
     avoid:"Rule out fracture before assuming sprain." },
-  { id:"fracture", cat:"FALLS & FRACTURES", severity:"moderate", evac:true,
+  { id:"fracture", cat:"FALLS & FRACTURES", severity:"moderate", evac:true, photoAssess:false,
     title:"Fracture / Suspected Fracture",
     signs:["Significant force mechanism","Point tenderness over bone","Deformity, angulation, or shortening","Crepitus","Unable to bear weight","Open fracture: bone visible"],
     tx:["Splint in position found — immobilize joint above and below","Check CSM before and after splinting","Pad splint well; secure snugly","Open fracture: moist sterile dressing, do not push bone","Femur: treat proactively for shock","Evacuate all fractures"],
     avoid:"Do not straighten unless distal NV compromised and evac delayed." },
-  { id:"heat_ex", cat:"ENVIRONMENTAL", severity:"moderate", evac:true,
+  { id:"heat_ex", cat:"ENVIRONMENTAL", severity:"moderate", evac:true, photoAssess:false,
     title:"Heat Exhaustion",
     signs:["Heavy sweating","Pale, cool, clammy skin","Weakness, dizziness, headache, nausea","HR > 100","Normal mental status — AMS = heat stroke"],
     tx:["Move to cool shade","Remove excess clothing","Supine, elevate legs","Cool wet cloths to neck, armpits, groin","Oral rehydration — sips","Improving in 30 min — may monitor carefully","Any AMS → treat as heat stroke immediately"],
     avoid:"Any AMS = heat stroke. Do not delay cooling." },
-  { id:"heat_stroke", cat:"ENVIRONMENTAL", severity:"high", evac:true,
+  { id:"heat_stroke", cat:"ENVIRONMENTAL", severity:"high", evac:true, photoAssess:false,
     title:"Heat Stroke",
     signs:["Hot skin — wet or dry","AMS: confusion, combative, or unresponsive","Core temp > 40°C (104°F)","Rapid HR and RR","Nausea, vomiting, possible seizure"],
     tx:["COOL FIRST, TRANSPORT SECOND","Strip clothing; ice packs to neck/armpits/groin","Fan aggressively — evaporation speeds cooling","Continue active cooling during evacuation","Monitor airway","Emergency evacuation"],
     avoid:"No oral fluids if AMS — aspiration risk." },
-  { id:"altitude", cat:"ENVIRONMENTAL", severity:"moderate", evac:true,
+  { id:"altitude", cat:"ENVIRONMENTAL", severity:"moderate", evac:true, photoAssess:false,
     title:"Altitude Illness (AMS / HACE / HAPE)",
     signs:["AMS: headache + nausea/fatigue above 2500 m","HACE: AMS + ataxia or severely worsening AMS","HAPE: dry → wet cough, SOB at rest, crackles, blue lips"],
     tx:["AMS: stop ascent, rest, hydrate, ibuprofen for headache","Do not ascend until symptom-free 24 h","HACE or HAPE: DESCEND IMMEDIATELY 300–1000 m","Supplemental O2 if available","Gamow bag if available","HACE/HAPE: emergency evacuation"],
     avoid:"Never ascend with AMS. Descent is definitive treatment." },
-  { id:"hypothermia", cat:"ENVIRONMENTAL", severity:"high", evac:true,
+  { id:"hypothermia", cat:"ENVIRONMENTAL", severity:"high", evac:true, photoAssess:false,
     title:"Hypothermia",
     signs:["Mild: shivering, clumsy, poor judgment","Moderate: stops shivering, rigid, confused","Severe: no shivering, rigid, faint or absent pulse"],
     tx:["Handle gently — no rough movement (VFib risk)","Remove wet clothing","Insulate: pad + bag + vapor barrier","Heat trunk only","Warm sweet fluids if alert and can swallow","Severe → horizontal evacuation"],
     avoid:"No heat packs on extremities. No rough movement." },
-  { id:"frostbite", cat:"ENVIRONMENTAL", severity:"high", evac:true,
+  { id:"frostbite", cat:"ENVIRONMENTAL", severity:"high", evac:true, photoAssess:false,
     title:"Frostbite",
     signs:["Superficial: white/gray waxy skin, firm surface soft underneath","Deep: completely hard, wooden texture","Post-thaw: clear blisters (superficial) or bloody (deep)","Complete numbness"],
     tx:["Do NOT rewarm if refreezing risk","Protect from trauma; pad and wrap loosely","Rewarm only with definitive shelter: 40–42°C water bath 15–30 min","Expect severe pain on rewarming — good sign","Ibuprofen if available","No walking on thawed feet","Evacuate all frostbite"],
     avoid:"Never rewarm if refreezing possible. No dry heat. No rubbing." },
-  { id:"dehydration", cat:"ENVIRONMENTAL", severity:"low", evac:false,
+  { id:"dehydration", cat:"ENVIRONMENTAL", severity:"low", evac:false, photoAssess:false,
     title:"Dehydration",
     signs:["Thirst, dry mouth","Dark urine or decreased output","Headache, fatigue","Dizziness on standing","Severe: AMS, rapid HR, low BP"],
     tx:["Oral rehydration — water + electrolytes","500 mL over 30 min for mild","Sports drink, ORS, or dilute juice","Salty snack + water effective field solution","Severe (AMS or can't drink) → IV + evacuation"],
     avoid:"" },
-  { id:"seizure", cat:"NEUROLOGICAL", severity:"high", evac:true,
+  { id:"seizure", cat:"NEUROLOGICAL", severity:"high", evac:true, photoAssess:false,
     title:"Seizure",
     signs:["Tonic-clonic: whole body stiffening then jerking","Post-ictal: prolonged confusion and fatigue","May bite tongue or be incontinent","First seizure always requires eval"],
     tx:["Protect from injury — clear area; do NOT restrain","Turn on side (recovery position)","Nothing in mouth during seizure","Time the seizure — > 5 min = status epilepticus, emergency","After: recovery position, monitor airway, assess LOR","First seizure, prolonged, or post-ictal AMS → evacuate"],
     avoid:"Never put anything in mouth during seizure." },
-  { id:"diabetic", cat:"NEUROLOGICAL", severity:"moderate", evac:true,
+  { id:"diabetic", cat:"NEUROLOGICAL", severity:"moderate", evac:true, photoAssess:false,
     title:"Diabetic Emergency / Hypoglycemia",
     signs:["Sudden: shaky, sweaty, pale, anxious","May self-identify early hypoglycemia","Severe: confusion, unresponsive, seizure","History of diabetes; missed meal or over-exerted"],
     tx:["Conscious + can swallow: 15–20 g fast sugar","Recheck in 15 min; repeat if no improvement","Follow with complex carb + protein snack","Unconscious: do NOT give oral fluids","Recovery position; honey/gel inside cheek if barely responsive","Evacuate if unknown cause, unresponsive, or no improvement"],
     avoid:"No oral fluids if unconscious — aspiration risk." },
-  { id:"asthma", cat:"RESPIRATORY", severity:"moderate", evac:true,
+  { id:"asthma", cat:"RESPIRATORY", severity:"moderate", evac:true, photoAssess:false,
     title:"Asthma / Bronchospasm",
     signs:["Expiratory wheeze or silent chest (critical)","SOB, chest tightness","Use of accessory muscles","Cyanosis in severe cases","Triggers: cold air, exertion, allergen"],
     tx:["Sit upright","Albuterol MDI: 4–8 puffs via spacer every 20 min ×3","Pursed-lip breathing with reassurance","Keep warm","Mild improvement in 20 min in known asthmatic — may monitor","No improvement, silent chest, or cyanosis → emergency evac"],
     avoid:"" },
-  { id:"wound_inf", cat:"WOUND & INFECTION", severity:"moderate", evac:true,
+  { id:"wound_inf", cat:"WOUND & INFECTION", severity:"moderate", evac:true, photoAssess:true,
     title:"Wound Infection / Cellulitis",
     signs:["Redness spreading beyond wound margins","Warmth, swelling, increasing pain","Purulent discharge or foul odor","Streaking redness tracking up limb (lymphangitis)","Fever, chills"],
     tx:["Open wound to allow drainage if fluctuant","Irrigate aggressively","Warm soaks 3–4× daily","Change dressings twice daily","Antibiotics required → evacuate","Spreading cellulitis or systemic symptoms → urgent evac","Lymphangitic streaking = emergency evacuation"],
@@ -623,6 +623,25 @@ function StepPills({steps,activeStep,checks,onStepClick}){
   );
 }
 
+/* SEVERITY / EVAC COLOR HELPERS */
+function severityColor(severity) {
+  if (!severity) return "#4a5c4b";
+  const s = severity.toLowerCase();
+  if (s.includes("life")) return "#b71c1c";
+  if (s.includes("severe")) return "#c45000";
+  if (s.includes("moderate")) return "#b8860b";
+  return "#2a6e22";
+}
+
+function evacColor(evac) {
+  if (!evac) return "#4a5c4b";
+  const e = evac.toLowerCase();
+  if (e.includes("emergency")) return "#b71c1c";
+  if (e.includes("urgent")) return "#c45000";
+  if (e.includes("monitor")) return "#b8860b";
+  return "#2a6e22";
+}
+
 /* MAIN COMPONENT */
 export default function WFRField(){
   const [screen,setScreen]=useState("home");
@@ -649,6 +668,16 @@ export default function WFRField(){
   const [aiResult,setAiResult]=useState(null);
   const [aiFilled,setAiFilled]=useState([]);
   const [aiOnline,setAiOnline]=useState(true);
+
+  /* PHOTO ASSESSMENT STATE */
+  const [photoModalOpen,setPhotoModalOpen]=useState(false);
+  const [photoPreview,setPhotoPreview]=useState(null);
+  const [photoBase64,setPhotoBase64]=useState(null);
+  const [photoMime,setPhotoMime]=useState("image/jpeg");
+  const [photoNotes,setPhotoNotes]=useState("");
+  const [photoResult,setPhotoResult]=useState(null);
+  const [photoLoading,setPhotoLoading]=useState(false);
+  const [photoError,setPhotoError]=useState("");
 
   const {runOffline,isLoading:offlineLoading,isReady:offlineReady,progress:offlineProgress}=useOfflineTriage();
 
@@ -813,6 +842,57 @@ export default function WFRField(){
     }
   },[aiNotes,activeLog,runOffline,applyTriageToLog]);
 
+  /* PHOTO ASSESSMENT HANDLERS */
+  const handlePhotoSelect=useCallback((e)=>{
+    const file=e.target.files?.[0];
+    if(!file)return;
+    setPhotoMime(file.type||"image/jpeg");
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      const dataUrl=ev.target.result;
+      setPhotoPreview(dataUrl);
+      setPhotoBase64(dataUrl.split(",")[1]);
+    };
+    reader.readAsDataURL(file);
+  },[]);
+
+  const handlePhotoAssess=useCallback(async()=>{
+    if(!photoBase64)return;
+    setPhotoLoading(true);
+    setPhotoError("");
+    setPhotoResult(null);
+    try{
+      const res=await fetch("/api/assess/photo",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({imageBase64:photoBase64,mimeType:photoMime,notes:photoNotes}),
+      });
+      const data=await res.json();
+      if(data.error)throw new Error(data.error);
+      setPhotoResult(data);
+    }catch(err){
+      setPhotoError(err.message||"Assessment failed. Check connection.");
+    }finally{
+      setPhotoLoading(false);
+    }
+  },[photoBase64,photoMime,photoNotes]);
+
+  const handleAttachToLog=useCallback(()=>{
+    if(!photoResult||!activeLog)return;
+    const summary=`PHOTO ASSESSMENT (${new Date().toLocaleTimeString()}):\nSuspected: ${photoResult.suspected}\nSeverity: ${photoResult.severity}\nFindings: ${photoResult.findings}\nTreatment: ${photoResult.treatment?.join("; ")}\nWatch for: ${photoResult.watchFor?.join("; ")}\nEvacuation: ${photoResult.evacuation}`;
+    patchLog(activeLog.id,{notes:(activeLog.notes?activeLog.notes+"\n\n":"")+summary});
+    setPhotoModalOpen(false);
+  },[photoResult,activeLog,patchLog]);
+
+  const openPhotoModal=useCallback(()=>{
+    setPhotoModalOpen(true);
+    setPhotoPreview(null);
+    setPhotoBase64(null);
+    setPhotoNotes("");
+    setPhotoResult(null);
+    setPhotoError("");
+  },[]);
+
   const startNewLog=()=>{
     const log=makeLog();
     setLogs(ls=>[log,...ls]);
@@ -845,13 +925,24 @@ export default function WFRField(){
   /* HOME */
   if(screen==="home") return (
     <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
+      {photoModal}
       <div style={{maxWidth:480,margin:"0 auto"}}>
         <div style={{textAlign:"center",marginBottom:"20px"}}>
           <div style={{fontSize:"22px",fontWeight:700,color:"#2a6e22",letterSpacing:"0.08em"}}>FIELD MED</div>
           <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.12em",marginTop:"2px"}}>WFR BACKCOUNTRY REFERENCE</div>
         </div>
-        <button onClick={startNewLog} style={{...btnPrimary,width:"100%",fontSize:"14px",marginBottom:"16px",padding:"14px"}}>
+        <button onClick={startNewLog} style={{...btnPrimary,width:"100%",fontSize:"14px",marginBottom:"10px",padding:"14px"}}>
           + NEW PATIENT LOG
+        </button>
+        {/* Photo Assess quick action */}
+        <button onClick={openPhotoModal}
+          style={{width:"100%",background:"#ffffff",border:"2px solid #2a6e22",borderRadius:"10px",padding:"14px 16px",marginBottom:"16px",display:"flex",alignItems:"center",gap:"12px",cursor:"pointer",WebkitAppearance:"none",textAlign:"left"}}>
+          <div style={{fontSize:"26px",lineHeight:1}}>📷</div>
+          <div>
+            <div style={{fontSize:"13px",fontWeight:700,color:"#2a6e22",fontFamily:mono}}>Assess Bite / Sting / Rash</div>
+            <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"2px",fontFamily:mono}}>Gemini Vision — instant WFR analysis</div>
+          </div>
+          <div style={{marginLeft:"auto",color:"#2a6e22",fontSize:"16px"}}>→</div>
         </button>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"16px"}}>
           {[
@@ -927,11 +1018,22 @@ export default function WFRField(){
       .sort((x,y)=>y.score-x.score).map(({a})=>a);
     return (
       <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
+        {photoModal}
         <div style={{maxWidth:480,margin:"0 auto"}}>
           <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"12px"}}>
             <button onClick={()=>{setScreen("home");setOpenAilment(null);}} style={{background:"none",border:"none",color:"#2a6e22",fontFamily:mono,fontSize:"13px",cursor:"pointer",padding:0}}>← Back</button>
             <div style={{fontWeight:700,color:"#1c2d1e",fontSize:"15px",letterSpacing:"0.06em"}}>AILMENTS</div>
           </div>
+          {/* Photo assess button at top of ailments */}
+          <button onClick={openPhotoModal}
+            style={{width:"100%",background:"#e6f4e2",border:"1px solid #2a6e22",borderRadius:"8px",padding:"11px 14px",marginBottom:"12px",display:"flex",alignItems:"center",gap:"10px",cursor:"pointer",WebkitAppearance:"none",textAlign:"left"}}>
+            <span style={{fontSize:"18px"}}>📷</span>
+            <div>
+              <div style={{fontSize:"12px",fontWeight:700,color:"#2a6e22",fontFamily:mono}}>Photo Assessment</div>
+              <div style={{fontSize:"11px",color:"#4a5c4b",fontFamily:mono}}>Analyze a bite, sting, or rash with Gemini Vision</div>
+            </div>
+            <div style={{marginLeft:"auto",color:"#2a6e22",fontSize:"14px"}}>→</div>
+          </button>
           <input value={ailSearch} onChange={e=>setAilSearch(e.target.value)} placeholder="Search ailments..." style={{...inputSt,marginBottom:"8px"}}/>
           <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"12px"}}>
             {cats.map(c=><button key={c} onClick={()=>setActiveCat(c)}
@@ -941,12 +1043,21 @@ export default function WFRField(){
             <div key={a.id} style={{background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"8px",marginBottom:"8px",overflow:"hidden"}}>
               <button onClick={()=>setOpenAilment(openAilment===a.id?null:a.id)}
                 style={{width:"100%",background:"none",border:"none",padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",WebkitAppearance:"none"}}>
-                <div style={{textAlign:"left"}}>
+                <div style={{textAlign:"left",flex:1}}>
                   <span style={{fontSize:"10px",color:"#8a9c8b",marginRight:"8px"}}>{a.cat}</span>
                   <span style={{fontSize:"13px",fontWeight:600,color:"#1c2d1e"}}>{a.title}</span>
                   {a.evac&&<span style={{fontSize:"10px",fontWeight:700,color:"#b71c1c",marginLeft:"8px"}}>EVAC</span>}
                 </div>
-                <span style={{color:"#8a9c8b"}}>{openAilment===a.id?"▲":"▼"}</span>
+                <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                  {a.photoAssess&&(
+                    <button
+                      onClick={e=>{e.stopPropagation();openPhotoModal();}}
+                      style={{background:"#e6f4e2",border:"1px solid #2a6e22",borderRadius:"6px",padding:"3px 8px",fontSize:"10px",fontFamily:mono,color:"#2a6e22",fontWeight:700,cursor:"pointer",WebkitAppearance:"none",whiteSpace:"nowrap"}}>
+                      📷 Assess
+                    </button>
+                  )}
+                  <span style={{color:"#8a9c8b"}}>{openAilment===a.id?"▲":"▼"}</span>
+                </div>
               </button>
               {openAilment===a.id&&(
                 <div style={{padding:"0 14px 14px"}}>
@@ -955,6 +1066,12 @@ export default function WFRField(){
                   <div style={{fontSize:"11px",fontWeight:700,color:"#4a5c4b",marginTop:"10px",marginBottom:"4px",letterSpacing:"0.08em"}}>TREATMENT</div>
                   {a.tx.map((t,i)=><div key={i} style={{fontSize:"12px",color:"#1c2d1e",marginBottom:"3px",paddingLeft:"8px"}}>• {t}</div>)}
                   {a.avoid&&<div style={{marginTop:"10px",background:"#ffebee",borderRadius:"6px",padding:"8px 10px",fontSize:"11px",fontWeight:700,color:"#b71c1c"}}>⚠ {a.avoid}</div>}
+                  {a.photoAssess&&(
+                    <button onClick={openPhotoModal}
+                      style={{...btnPrimary,marginTop:"12px",width:"100%",padding:"9px",fontSize:"11px",background:"#1a3a1c",border:"1px solid #2a6e22"}}>
+                      📷 Assess with Photo — Gemini Vision
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1012,6 +1129,190 @@ export default function WFRField(){
   const evacFromAI=aiResult?.problems?.evacType||"";
   const isEmergencyEvac=evacFromAI==="Emergency — call now";
   const isUrgentEvac=evacFromAI==="Urgent — within hours";
+
+  /* PHOTO MODAL */
+  const photoModal=photoModalOpen&&(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:1100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+      onClick={e=>{if(e.target===e.currentTarget){setPhotoModalOpen(false);}}}>
+      <div style={{background:"#1c2d1e",border:"1px solid #2a6e22",borderRadius:"14px 14px 0 0",padding:"20px 16px 36px",width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto"}}>
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}>
+          <div>
+            <div style={{fontSize:"14px",fontWeight:700,color:"#ffffff",letterSpacing:"0.06em"}}>📷 PHOTO ASSESSMENT</div>
+            <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"2px"}}>Gemini Vision — WFR Protocol Analysis</div>
+          </div>
+          <button onClick={()=>setPhotoModalOpen(false)}
+            style={{background:"none",border:"none",color:"#8a9c8b",fontSize:"22px",cursor:"pointer",lineHeight:1}}>×</button>
+        </div>
+
+        {/* Photo input */}
+        <div style={{marginBottom:"12px"}}>
+          <label style={{fontSize:"11px",color:"#8a9c8b",display:"block",marginBottom:"6px",letterSpacing:"0.06em"}}>PHOTO / CAMERA</label>
+          <label style={{display:"block",cursor:"pointer"}}>
+            <div style={{background:"#0d1f10",border:"2px dashed #2a6e22",borderRadius:"8px",padding:"16px",textAlign:"center",color:"#4caf50",fontSize:"12px",fontFamily:mono}}>
+              {photoPreview?"📷 Photo selected — tap to change":"📷 Tap to take photo or select from library"}
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoSelect}
+              style={{display:"none"}}
+            />
+          </label>
+        </div>
+
+        {/* Preview */}
+        {photoPreview&&(
+          <div style={{marginBottom:"12px",textAlign:"center"}}>
+            <img src={photoPreview} alt="Selected photo"
+              style={{maxHeight:"200px",maxWidth:"100%",borderRadius:"8px",border:"1px solid #2a6e22",objectFit:"contain"}}/>
+          </div>
+        )}
+
+        {/* Notes */}
+        <div style={{marginBottom:"12px"}}>
+          <label style={{fontSize:"11px",color:"#8a9c8b",display:"block",marginBottom:"6px",letterSpacing:"0.06em"}}>CONTEXT (OPTIONAL)</label>
+          <textarea
+            value={photoNotes}
+            onChange={e=>setPhotoNotes(e.target.value)}
+            placeholder="Add context (location on body, duration, symptoms...)"
+            rows={3}
+            style={{...inputSt,background:"#0d1f10",color:"#e8f5e9",border:"1px solid #2a6e22",resize:"vertical",fontSize:"12px",lineHeight:"1.5"}}
+          />
+        </div>
+
+        {/* Assess button */}
+        <button
+          onClick={handlePhotoAssess}
+          disabled={!photoBase64||photoLoading}
+          style={{...btnPrimary,width:"100%",padding:"12px",fontSize:"13px",marginBottom:"12px",
+            opacity:(!photoBase64||photoLoading)?0.5:1,
+            background:photoLoading?"#4a5c4b":"#2a6e22"}}>
+          {photoLoading?"Analyzing with Gemini Vision…":"Assess Photo"}
+        </button>
+
+        {/* Error */}
+        {photoError&&(
+          <div style={{padding:"10px 12px",background:"#3d0000",border:"1px solid #b71c1c",borderRadius:"6px",marginBottom:"12px",fontSize:"12px",color:"#ef9a9a",fontFamily:mono}}>
+            {photoError}
+          </div>
+        )}
+
+        {/* Results */}
+        {photoResult&&(
+          <div style={{background:"#0d1f10",border:"1px solid #2a6e22",borderRadius:"10px",padding:"14px",marginBottom:"12px"}}>
+
+            {/* Anaphylaxis risk banner */}
+            {photoResult.anaphylaxisRisk==="High"&&(
+              <div style={{
+                background:"#b71c1c",border:"2px solid #ff1744",borderRadius:"8px",
+                padding:"12px 14px",marginBottom:"14px",
+              }}>
+                <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}`}</style>
+                <div style={{fontSize:"13px",fontWeight:700,color:"#ffffff",letterSpacing:"0.04em",animation:"pulse 1.5s ease-in-out infinite"}}>
+                  ⚠️ HIGH ANAPHYLAXIS RISK
+                </div>
+                <div style={{fontSize:"11px",color:"rgba(255,255,255,0.9)",marginTop:"4px"}}>
+                  Check for Epi-Pen. Prepare for emergency evacuation.
+                </div>
+              </div>
+            )}
+
+            {/* Suspected condition */}
+            <div style={{marginBottom:"12px"}}>
+              <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"4px"}}>SUSPECTED</div>
+              <div style={{fontSize:"15px",fontWeight:700,color:"#ffffff",lineHeight:"1.3"}}>{photoResult.suspected}</div>
+            </div>
+
+            {/* Badges */}
+            <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"12px"}}>
+              <span style={{background:"#1a3a1c",border:"1px solid #2a6e22",borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,color:"#a5d6a7"}}>
+                Confidence: {photoResult.confidence}
+              </span>
+              <span style={{
+                background:"rgba(0,0,0,0.3)",
+                border:"1px solid "+severityColor(photoResult.severity),
+                borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,
+                color:severityColor(photoResult.severity),fontWeight:700,
+              }}>
+                {photoResult.severity}
+              </span>
+              {photoResult.anaphylaxisRisk&&photoResult.anaphylaxisRisk!=="Low"&&(
+                <span style={{background:"rgba(183,28,28,0.3)",border:"1px solid #b71c1c",borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,color:"#ef9a9a"}}>
+                  Anaphylaxis: {photoResult.anaphylaxisRisk}
+                </span>
+              )}
+            </div>
+
+            {/* Findings */}
+            {photoResult.findings&&(
+              <div style={{marginBottom:"12px"}}>
+                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"4px"}}>FINDINGS</div>
+                <div style={{fontSize:"12px",color:"#e8f5e9",lineHeight:"1.6"}}>{photoResult.findings}</div>
+              </div>
+            )}
+
+            {/* Treatment */}
+            {photoResult.treatment&&photoResult.treatment.length>0&&(
+              <div style={{marginBottom:"12px"}}>
+                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"6px"}}>TREATMENT</div>
+                {photoResult.treatment.map((t,i)=>(
+                  <div key={i} style={{fontSize:"12px",color:"#e8f5e9",marginBottom:"4px",display:"flex",gap:"8px"}}>
+                    <span style={{color:"#4caf50",flexShrink:0,fontWeight:700}}>{i+1}.</span>
+                    <span>{t}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Watch for */}
+            {photoResult.watchFor&&photoResult.watchFor.length>0&&(
+              <div style={{marginBottom:"12px"}}>
+                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"6px"}}>WATCH FOR</div>
+                {photoResult.watchFor.map((w,i)=>(
+                  <div key={i} style={{fontSize:"12px",color:"#ffe082",marginBottom:"4px",paddingLeft:"8px"}}>• {w}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Evacuation */}
+            {photoResult.evacuation&&(
+              <div style={{marginBottom:"12px",padding:"10px 12px",borderRadius:"8px",
+                background:"rgba(0,0,0,0.3)",
+                border:"1px solid "+evacColor(photoResult.evacuation)}}>
+                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"4px"}}>EVACUATION</div>
+                <div style={{fontSize:"13px",fontWeight:700,color:evacColor(photoResult.evacuation)}}>{photoResult.evacuation}</div>
+                {photoResult.evacuationReason&&(
+                  <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"4px"}}>{photoResult.evacuationReason}</div>
+                )}
+              </div>
+            )}
+
+            {/* Disclaimer */}
+            {photoResult.disclaimer&&(
+              <div style={{fontSize:"10px",color:"#4a5c4b",borderTop:"1px solid #1a3a1c",paddingTop:"10px",marginBottom:"12px",lineHeight:"1.5"}}>
+                {photoResult.disclaimer}
+              </div>
+            )}
+
+            {/* Attach to log */}
+            {activeLog&&(
+              <button onClick={handleAttachToLog}
+                style={{...btnPrimary,width:"100%",padding:"11px",fontSize:"12px"}}>
+                Attach to Patient Log
+              </button>
+            )}
+          </div>
+        )}
+
+        <div style={{fontSize:"10px",color:"#4a5c4b",textAlign:"center",marginTop:"8px",lineHeight:"1.4"}}>
+          AI vision analysis — always apply WFR training and clinical judgment.
+        </div>
+      </div>
+    </div>
+  );
 
   /* AI MODAL */
   const aiModal=aiModalOpen&&(
@@ -1135,12 +1436,19 @@ export default function WFRField(){
   return (
     <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
       {aiModal}
+      {photoModal}
       <div style={{maxWidth:480,margin:"0 auto"}}>
 
         {/* Header */}
         <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"12px"}}>
           <button onClick={()=>setScreen("home")} style={{background:"none",border:"none",color:"#2a6e22",fontFamily:mono,fontSize:"13px",cursor:"pointer",padding:0}}>← Home</button>
           <LogInput value={log.name} onSave={v=>patchLog(log.id,{name:v})} placeholder="Log name / patient ID" style={{...inputSt,flex:1,fontSize:"13px"}}/>
+          <button onClick={openPhotoModal}
+            style={{background:"#1a3a1c",border:"1px solid #2a6e22",borderRadius:"8px",padding:"8px 10px",color:"#4caf50",
+              fontFamily:mono,fontSize:"11px",fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",
+              letterSpacing:"0.04em",WebkitAppearance:"none"}}>
+            📷
+          </button>
           <button onClick={()=>{setAiModalOpen(true);setAiResult(null);setAiFilled([]);setAiError("");}}
             style={{background:"#2a6e22",border:"none",borderRadius:"8px",padding:"8px 10px",color:"#ffffff",
               fontFamily:mono,fontSize:"11px",fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",

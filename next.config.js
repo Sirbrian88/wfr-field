@@ -1,21 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Prevent @huggingface/transformers from being bundled by Next.js server
+  // The offline worker loads it dynamically at runtime via CDN
+  serverExternalPackages: ["@huggingface/transformers"],
+
   webpack: (config, { isServer }) => {
-    // Support Web Workers via webpack 5
-    config.output.globalObject = "self";
-
-    // Required for @huggingface/transformers ONNX/WASM files
-    config.resolve.alias = {
-      ...config.resolve.alias,
-    };
-
-    // Allow .wasm and ONNX binary assets
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: "asset/resource",
-    });
-
-    // Exclude heavy node-specific modules from client bundle
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -24,21 +13,7 @@ const nextConfig = {
         crypto: false,
       };
     }
-
     return config;
-  },
-
-  // Allow cross-origin isolation headers needed for SharedArrayBuffer (WASM threads)
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
-        ],
-      },
-    ];
   },
 };
 
