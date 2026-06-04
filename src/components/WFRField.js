@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useOfflineTriage } from "../hooks/useOfflineTriage";
-import { createTriageRunner } from "../utils/triageEngine";
+
+
 
 const C = {
   bg:          "#f3f5f2",
@@ -765,7 +765,7 @@ export default function WFRField(){
   const [photoLoading,setPhotoLoading]=useState(false);
   const [photoError,setPhotoError]=useState("");
 
-  const {runOffline,isLoading:offlineLoading,isReady:offlineReady,progress:offlineProgress}=useOfflineTriage();
+  const runOffline=null,offlineLoading=false,offlineReady=false,offlineProgress={stage:"",percent:0};
 
   /* Track online status */
   useEffect(()=>{
@@ -916,7 +916,7 @@ export default function WFRField(){
     setAiResult(null);
     setAiFilled([]);
     try{
-      const{runTriage}=createTriageRunner(runOffline);
+      const runTriage=async(notes)=>{const res=await fetch("/api/triage/cloud",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({notes})});const d=await res.json();if(!d?.ok||!d?.triage)throw new Error(d?.error||"Cloud error");return d.triage;};
       const triage=await runTriage(aiNotes);
       const filled=applyTriageToLog(activeLog.id,triage);
       setAiResult(triage);
