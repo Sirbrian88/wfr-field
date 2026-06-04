@@ -3,31 +3,47 @@ import { NextResponse } from "next/server";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const PROMPT = `You are a wilderness medicine assistant trained in NOLS WFR protocols (7th edition). Analyze this image of a patient's skin/wound condition.
+const PROMPT = `You are a wilderness medicine assistant trained in NOLS WFR protocols (7th edition). A field responder has sent a photo for assessment.
+
+IMPORTANT RULES:
+- If the image shows normal, healthy skin or a body part with no signs of injury, envenomation, infection, or rash — say so clearly. "Appears normal" is a valid and important finding.
+- Do NOT over-diagnose. Minor redness, normal skin variations, tan lines, freckles, or hair follicles are NOT medical concerns.
+- Use PLAIN ENGLISH first. If you must use a medical term, explain it simply in parentheses.
+- Be appropriately reassuring when things look fine.
 
 Respond ONLY with raw JSON (no markdown, no code blocks):
-{"suspected":"e.g. Hymenoptera sting — likely bee","confidence":"High|Moderate|Low","severity":"Minor|Moderate|Severe|Life-threatening","anaphylaxisRisk":"Low|Moderate|High","findings":"2-3 sentences describing what you observe","treatment":["step 1","step 2","step 3"],"watchFor":["sign 1","sign 2"],"evacuation":"Not indicated|Monitor — evacuate if worsens|Urgent — evacuate within hours|Emergency — evacuate immediately","evacuationReason":"reason if evacuation needed, else empty string","disclaimer":"Field assessment only — not a substitute for WFR training or professional medical care."}
+{
+  "suspected": "Brief description e.g. 'Appears normal — no signs of injury or reaction' OR 'Possible bee sting with local swelling'",
+  "confidence": "High|Moderate|Low",
+  "severity": "None — appears normal|Minor|Moderate|Severe|Life-threatening",
+  "anaphylaxisRisk": "None|Low|Moderate|High",
+  "findings": "Plain English description of what you see. If normal, say it looks normal and why. Avoid unnecessary jargon.",
+  "treatment": ["Only include steps if treatment is actually needed. If normal, put 'No treatment needed — monitor for any changes'"],
+  "watchFor": ["Signs that would warrant concern. If normal, put 'Seek care if you develop redness, swelling, pain, or spreading rash'"],
+  "evacuation": "Not indicated|Monitor — evacuate if worsens|Urgent — evacuate within hours|Emergency — evacuate immediately",
+  "evacuationReason": "Only fill if evacuation is indicated, otherwise leave empty",
+  "plainEnglish": "One sentence in simple everyday language summarizing your assessment, suitable for a non-medical person",
+  "disclaimer": "Field assessment only — not a substitute for WFR training or professional medical care."
+}
 
-NOLS rules: anaphylaxis signs (spreading hives, throat tightness) → Life-threatening + Emergency. Snake/spider puncture → Urgent minimum. Wound infection (red streaking, pus, warmth, fever) → Urgent. If cannot identify → confidence=Low.`;
+NOLS severity rules (only apply when genuinely present):
+- Anaphylaxis signs (hives spreading rapidly, throat tightening, difficulty breathing, dizziness) → Life-threatening + Emergency evac
+- Snake or spider bite with puncture marks → Urgent minimum
+- Infection signs (red streaking away from wound, pus, significant warmth and swelling) → Urgent
+- If image is unclear or you cannot identify anything concerning → confidence=Low, note that image quality limits assessment`;
 
 export async function POST(request) {
   try {
     const { imageBase64, mimeType, notes } = await request.json();
     if (!imageBase64) return NextResponse.json({ error: "No image provided" }, { status: 400 });
-    if (!ANTHROPIC_KEY) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured in Vercel env vars" }, { status: 500 });
+    if (!ANTHROPIC_KEY) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
 
     const cleanB64 = imageBase64.replace(/^data:[^;]+;base64,/, "").replace(/\s+/g, "");
-    const mediaType = (mimeType || "image/jpeg").replace("jpg", "jpeg");
+    const mediaType = (mimeType || "image/jpeg").replace("image/jpg", "image/jpeg");
 
     const userContent = [
-      {
-        type: "image",
-        source: { type: "base64", media_type: mediaType, data: cleanB64 }
-      },
-      {
-        type: "text",
-        text: notes?.trim() ? `${PROMPT}\n\nField notes from responder: ${notes.trim()}` : PROMPT
-      }
+      { type: "image", source: { type: "base64", media_type: mediaType, data: cleanB64 } },
+      { type: "text", text: notes?.trim() ? `${PROMPT}\n\nField responder notes: ${notes.trim()}` : PROMPT }
     ];
 
     const res = await fetch(ANTHROPIC_URL, {
@@ -35,8 +51,7 @@ export async function POST(request) {
       headers: {
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
+        "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
