@@ -1,61 +1,67 @@
 import { NextResponse } from "next/server";
 
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
-const PROMPT = `You are a wilderness medicine assistant (NOLS WFR 7th ed). Analyze this image.
-Return ONLY raw JSON, no markdown:
-{"suspected":"e.g. bee sting","confidence":"High|Moderate|Low","severity":"Minor|Moderate|Severe|Life-threatening","anaphylaxisRisk":"Low|Moderate|High","findings":"what you observe","treatment":["step 1"],"watchFor":["sign 1"],"evacuation":"Not indicated|Monitor — evacuate if worsens|Urgent — evacuate within hours|Emergency — evacuate immediately","evacuationReason":"","disclaimer":"Field assessment only."}`;
+const PROMPT = `You are a wilderness medicine assistant trained in NOLS WFR protocols (7th edition). Analyze this image of a patient's skin/wound condition.
+
+Respond ONLY with raw JSON (no markdown, no code blocks):
+{"suspected":"e.g. Hymenoptera sting — likely bee","confidence":"High|Moderate|Low","severity":"Minor|Moderate|Severe|Life-threatening","anaphylaxisRisk":"Low|Moderate|High","findings":"2-3 sentences describing what you observe","treatment":["step 1","step 2","step 3"],"watchFor":["sign 1","sign 2"],"evacuation":"Not indicated|Monitor — evacuate if worsens|Urgent — evacuate within hours|Emergency — evacuate immediately","evacuationReason":"reason if evacuation needed, else empty string","disclaimer":"Field assessment only — not a substitute for WFR training or professional medical care."}
+
+NOLS rules: anaphylaxis signs (spreading hives, throat tightness) → Life-threatening + Emergency. Snake/spider puncture → Urgent minimum. Wound infection (red streaking, pus, warmth, fever) → Urgent. If cannot identify → confidence=Low.`;
 
 export async function POST(request) {
   try {
     const { imageBase64, mimeType, notes } = await request.json();
-    if (!imageBase64) return NextResponse.json({ error: "No image" }, { status: 400 });
-    
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) return NextResponse.json({ error: "GEMINI_API_KEY not set" }, { status: 500 });
+    if (!imageBase64) return NextResponse.json({ error: "No image provided" }, { status: 400 });
+    if (!ANTHROPIC_KEY) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured in Vercel env vars" }, { status: 500 });
 
-    // Strip data URL prefix if present, remove whitespace
     const cleanB64 = imageBase64.replace(/^data:[^;]+;base64,/, "").replace(/\s+/g, "");
-    
-    const promptText = notes?.trim() ? `${PROMPT}\n\nField notes: ${notes.trim()}` : PROMPT;
+    const mediaType = (mimeType || "image/jpeg").replace("jpg", "jpeg");
 
-    // Correct camelCase format per Gemini REST API spec
-    const body = {
-      contents: [{
-        role: "user",
-        parts: [
-          { text: promptText },
-          { inlineData: { mimeType: mimeType || "image/jpeg", data: cleanB64 } }
-        ]
-      }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
-    };
+    const userContent = [
+      {
+        type: "image",
+        source: { type: "base64", media_type: mediaType, data: cleanB64 }
+      },
+      {
+        type: "text",
+        text: notes?.trim() ? `${PROMPT}\n\nField notes from responder: ${notes.trim()}` : PROMPT
+      }
+    ];
 
-    const res = await fetch(`${GEMINI_URL}?key=${key}`, {
+    const res = await fetch(ANTHROPIC_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        messages: [{ role: "user", content: userContent }]
+      })
     });
 
-    const responseText = await res.text();
-    
     if (!res.ok) {
-      // Log full error for debugging
-      console.error("Gemini error", res.status, responseText.slice(0, 500));
-      return NextResponse.json({ error: `Gemini ${res.status}: ${responseText.slice(0, 300)}` }, { status: 502 });
+      const errText = await res.text();
+      console.error("Anthropic error:", res.status, errText.slice(0, 300));
+      return NextResponse.json({ error: `API error ${res.status}: ${errText.slice(0, 200)}` }, { status: 502 });
     }
 
-    const data = JSON.parse(responseText);
-    const raw = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    const data = await res.json();
+    const rawText = (data?.content?.[0]?.text || "").trim();
+    const cleaned = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 
     let parsed;
     try { parsed = JSON.parse(cleaned); }
-    catch { return NextResponse.json({ error: "Parse failed", raw: raw.slice(0, 300) }, { status: 502 }); }
+    catch { return NextResponse.json({ error: "Could not parse response", raw: rawText.slice(0, 300) }, { status: 502 }); }
 
     return NextResponse.json(parsed);
   } catch (err) {
-    console.error("Route error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("Photo assess error:", err);
+    return NextResponse.json({ error: err.message || "Internal error" }, { status: 500 });
   }
 }
