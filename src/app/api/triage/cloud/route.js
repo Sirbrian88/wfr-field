@@ -148,9 +148,9 @@ export async function POST(request) {
       },
     };
 
-    const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+    const res = await fetch(GEMINI_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify(payload),
     });
 
