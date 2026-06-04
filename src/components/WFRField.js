@@ -39,10 +39,10 @@ const STEPS = [
       "Additional resources needed / called?",
     ],
     fields:[
-      { key:"numPatients", label:"# Patients",        type:"number",   placeholder:"1" },
-      { key:"moi",         label:"MOI / NOI",         type:"text",     placeholder:"e.g. fall from height, twisted ankle, bee sting" },
-      { key:"sceneSafe",   label:"Scene Safety Notes",type:"text",     placeholder:"hazards, controls" },
-      { key:"resources",   label:"Resources",         type:"text",     placeholder:"kit, litter, comms, other responders" },
+      { key:"numPatients", label:"# Patients",        type:"number",   hint:"e.g. 1" },
+      { key:"moi",         label:"MOI / NOI",         type:"text",     hint:"e.g. fall from height, twisted ankle, bee sting" },
+      { key:"sceneSafe",   label:"Scene Safety Notes",type:"text",     hint:"e.g. hazards identified, controls in place" },
+      { key:"resources",   label:"Resources",         type:"text",     hint:"e.g. kit, litter, comms, other responders" },
     ],
   },
   { id:"initial", tag:"PRIMARY", color:"#b71c1c", triLayer:1, label:"Initial Assessment",
@@ -62,7 +62,7 @@ const STEPS = [
       { key:"breathing",label:"Breathing",type:"select", options:["—","Present — normal","Present — labored","Absent"] },
       { key:"bleeding", label:"Severe Bleeding", type:"select", options:["—","None present","Controlled","Uncontrolled"] },
       { key:"spine",    label:"Spine Precautions", type:"select", options:["—","Not indicated","Indicated — immobilized","Cleared"] },
-      { key:"notes",    label:"Notes",    type:"text",   placeholder:"additional primary findings" },
+      { key:"notes",    label:"Notes",    type:"text",   hint:"e.g. additional primary findings" },
     ],
   },
   { id:"headtoe", tag:"SECONDARY", color:"#1a5276", triLayer:2, label:"Head-to-Toe Exam",
@@ -78,13 +78,13 @@ const STEPS = [
       "Posterior / back — spine tenderness along length?",
     ],
     fields:[
-      { key:"head",        label:"Head / Skull / Face",   type:"text",     placeholder:"DCAP-BTLS, PEARL, facial symmetry" },
-      { key:"neck",        label:"Neck / C-Spine",        type:"text",     placeholder:"midline pain, JVD, trachea midline?" },
-      { key:"chest",       label:"Chest / Breath Sounds", type:"text",     placeholder:"equal, clear; paradoxical?" },
-      { key:"abdomen",     label:"Abdomen / Pelvis",      type:"text",     placeholder:"tenderness, rigidity, stability" },
-      { key:"extremities", label:"Extremities",           type:"textarea", placeholder:"each limb: CSM, deformity, wounds, swelling" },
-      { key:"posterior",   label:"Posterior / Back",      type:"text",     placeholder:"spine tenderness, contusions, flanks" },
-      { key:"notes",       label:"Additional Findings",   type:"textarea", placeholder:"" },
+      { key:"head",        label:"Head / Skull / Face",   type:"text",     hint:"e.g. DCAP-BTLS, PEARL, facial symmetry" },
+      { key:"neck",        label:"Neck / C-Spine",        type:"text",     hint:"e.g. midline pain, JVD, trachea midline?" },
+      { key:"chest",       label:"Chest / Breath Sounds", type:"text",     hint:"e.g. equal, clear; paradoxical?" },
+      { key:"abdomen",     label:"Abdomen / Pelvis",      type:"text",     hint:"e.g. tenderness, rigidity, stability" },
+      { key:"extremities", label:"Extremities",           type:"textarea", hint:"e.g. each limb: CSM, deformity, wounds, swelling" },
+      { key:"posterior",   label:"Posterior / Back",      type:"text",     hint:"e.g. spine tenderness, contusions, flanks" },
+      { key:"notes",       label:"Additional Findings",   type:"textarea", hint:"" },
     ],
   },
   { id:"vitals", tag:"SECONDARY", color:"#1a5276", triLayer:2, label:"Vital Signs",
@@ -111,14 +111,14 @@ const STEPS = [
       "Events leading to incident documented",
     ],
     fields:[
-      { key:"age",     label:"Age / Sex",            type:"text",     placeholder:"e.g. 34 M" },
-      { key:"opqrst",  label:"OPQRST",               type:"textarea", placeholder:"Onset:\nProvocation:\nQuality:\nRadiation:\nSeverity: /10\nTime:" },
-      { key:"signs",   label:"Signs & Symptoms (S)", type:"textarea", placeholder:"chief complaint and objective findings" },
-      { key:"allergy", label:"Allergies (A)",         type:"text",     placeholder:"NKDA, or list" },
-      { key:"meds",    label:"Medications (M)",       type:"text",     placeholder:"current medications and doses" },
-      { key:"history", label:"Pertinent History (P)", type:"textarea", placeholder:"relevant medical / surgical history" },
-      { key:"last",    label:"Last Intake (L)",       type:"text",     placeholder:"food, water, meds — time and amount" },
-      { key:"events",  label:"Events Leading Up (E)", type:"textarea", placeholder:"what happened before the incident" },
+      { key:"age",     label:"Age / Sex",            type:"text",     hint:"e.g. 34 M" },
+      { key:"opqrst",  label:"OPQRST",               type:"textarea", hint:"Onset: / Provocation: / Quality: / Radiation: / Severity: /10 / Time:" },
+      { key:"signs",   label:"Signs & Symptoms (S)", type:"textarea", hint:"e.g. chief complaint and objective findings" },
+      { key:"allergy", label:"Allergies (A)",         type:"text",     hint:"e.g. NKDA, or list allergies" },
+      { key:"meds",    label:"Medications (M)",       type:"text",     hint:"e.g. current medications and doses" },
+      { key:"history", label:"Pertinent History (P)", type:"textarea", hint:"e.g. relevant medical / surgical history" },
+      { key:"last",    label:"Last Intake (L)",       type:"text",     hint:"e.g. food, water, meds — time and amount" },
+      { key:"events",  label:"Events Leading Up (E)", type:"textarea", hint:"e.g. what happened before the incident" },
       { key:"pain",    label:"Pain Scale (0–10)",     type:"pain" },
     ],
   },
@@ -131,11 +131,11 @@ const STEPS = [
       "Evacuation urgency determined",
     ],
     fields:[
-      { key:"problems",   label:"Problem List (most critical first)", type:"textarea", placeholder:"1. ...\n2. ...\n3. ..." },
+      { key:"problems",   label:"Problem List (most critical first)", type:"textarea", hint:"1. [most critical] / 2. ... / 3. ..." },
       { key:"spineRuled", label:"Spine Injury",   type:"select", options:["—","Cleared — no spine precautions","Not cleared — immobilized","Unable to assess"] },
       { key:"shock",      label:"Shock",          type:"select", options:["—","Not present","Suspected — treating","Confirmed — emergency evac"] },
       { key:"evacType",   label:"Evacuation",     type:"select", options:["—","Emergency — call now","Urgent — within hours","Planned walk-out","Monitor in place"] },
-      { key:"plan",       label:"Treatment Plan", type:"textarea", placeholder:"plan for each identified problem" },
+      { key:"plan",       label:"Treatment Plan", type:"textarea", hint:"e.g. plan for each identified problem" },
     ],
   },
   { id:"pfa", tag:"PSYCH", color:"#2a6e22", triLayer:null, label:"Psychological First Aid",
@@ -147,7 +147,7 @@ const STEPS = [
       "Hope — realistic reassurance provided",
     ],
     fields:[
-      { key:"pfaNotes", label:"PFA Notes", type:"textarea", placeholder:"patient emotional state, interventions used" },
+      { key:"pfaNotes", label:"PFA Notes", type:"textarea", hint:"e.g. patient emotional state, interventions used" },
     ],
   },
   { id:"interventions", tag:"TREATMENT", color:"#c45000", triLayer:null, label:"Interventions",
@@ -161,7 +161,7 @@ const STEPS = [
     ],
     fields:[
       { key:"interventionNotes", label:"Interventions Performed", type:"textarea",
-        placeholder:"list each treatment, medication (dose, route, time), and response" },
+        hint:"e.g. list each treatment, medication (dose, route, time), and response" },
     ],
   },
   { id:"monitor", tag:"MONITOR", color:"#4a5c4b", triLayer:null, label:"Monitor & Evac",
@@ -174,21 +174,21 @@ const STEPS = [
     ],
     fields:[
       { key:"trend",       label:"Patient Trend",        type:"select",   options:["—","Improving","Stable","Declining"] },
-      { key:"anticipated", label:"Anticipated Problems", type:"textarea", placeholder:"what to watch for, and planned responses" },
-      { key:"evacPlan",    label:"Evacuation Plan",      type:"textarea", placeholder:"route, resources, comms, ETA to care" },
-      { key:"comms",       label:"Communications",       type:"textarea", placeholder:"who was contacted, when, response" },
+      { key:"anticipated", label:"Anticipated Problems", type:"textarea", hint:"e.g. what to watch for, and planned responses" },
+      { key:"evacPlan",    label:"Evacuation Plan",      type:"textarea", hint:"e.g. route, resources, comms, ETA to care" },
+      { key:"comms",       label:"Communications",       type:"textarea", hint:"e.g. who was contacted, when, and response" },
     ],
   },
 ];
 
 const VITAL_FIELDS = [
-  { key:"lor",    label:"LOR",    fullLabel:"Level of Responsiveness",       placeholder:"A+Ox4" },
-  { key:"hr",     label:"HR",     fullLabel:"Heart Rate",                    placeholder:"bpm + quality" },
-  { key:"rr",     label:"RR",     fullLabel:"Resp. Rate",                    placeholder:"brpm + quality" },
-  { key:"sctm",   label:"SCTM",   fullLabel:"Skin (Color/Temp/Moisture)",    placeholder:"P/W/D" },
-  { key:"bp",     label:"BP",     fullLabel:"Blood Pressure",                placeholder:"sys/dia or est." },
-  { key:"pupils", label:"Pupils", fullLabel:"Pupils",                        placeholder:"PEARL / unequal" },
-  { key:"temp",   label:"Temp",   fullLabel:"Temperature",                   placeholder:"est. normal/hypo/hyper" },
+  { key:"lor",    label:"LOR",    fullLabel:"Level of Responsiveness",       hint:"e.g. A+Ox4, alert and oriented" },
+  { key:"hr",     label:"HR",     fullLabel:"Heart Rate",                    hint:"e.g. 72 bpm, strong/regular" },
+  { key:"rr",     label:"RR",     fullLabel:"Resp. Rate",                    hint:"e.g. 16 brpm, unlabored" },
+  { key:"sctm",   label:"SCTM",   fullLabel:"Skin (Color/Temp/Moisture)",    hint:"e.g. Pink/Warm/Dry" },
+  { key:"bp",     label:"BP",     fullLabel:"Blood Pressure",                hint:"e.g. 120/80 or est. normal" },
+  { key:"pupils", label:"Pupils", fullLabel:"Pupils",                        hint:"e.g. PEARL, 3mm equal bilateral" },
+  { key:"temp",   label:"Temp",   fullLabel:"Temperature",                   hint:"e.g. Normal est. / Mild hypothermia" },
 ];
 
 const PROTOCOLS = [
@@ -568,16 +568,29 @@ function generateWrittenSOAP(log){
 const inputSt={background:"#ffffff",border:"1px solid #cdd4c7",borderRadius:"6px",padding:"9px 11px",color:"#1c2d1e",fontFamily:mono,fontSize:"13px",outline:"none",width:"100%",boxSizing:"border-box",WebkitAppearance:"none"};
 const btnPrimary={background:"#2a6e22",border:"none",borderRadius:"6px",padding:"12px 18px",color:"#ffffff",fontFamily:mono,fontSize:"12px",fontWeight:700,letterSpacing:"0.06em",cursor:"pointer",WebkitAppearance:"none"};
 
+/* HINT TEXT STYLE */
+const hintSt={fontSize:"10px",color:"#9aab9b",fontFamily:"ui-monospace,'Courier New',monospace",marginTop:"3px",paddingLeft:"2px",letterSpacing:"0.02em",lineHeight:1.3,pointerEvents:"none"};
+
 /* STABLE INPUTS */
-function LogInput({value,onSave,style,...props}){
+function LogInput({value,onSave,style,hint,...props}){
   const [local,setLocal]=useState(value??"");
   useEffect(()=>{setLocal(value??"");},[value]);
-  return <input {...props} style={style} value={local} onChange={e=>setLocal(e.target.value)} onBlur={()=>onSave(local)}/>;
+  return (
+    <div>
+      <input {...props} placeholder="" style={style} value={local} onChange={e=>setLocal(e.target.value)} onBlur={()=>onSave(local)}/>
+      {hint&&<div style={hintSt}>{hint}</div>}
+    </div>
+  );
 }
-function LogTextarea({value,onSave,style,rows,placeholder}){
+function LogTextarea({value,onSave,style,rows,hint}){
   const [local,setLocal]=useState(value??"");
   useEffect(()=>{setLocal(value??"");},[value]);
-  return <textarea value={local} rows={rows} placeholder={placeholder} style={style} onChange={e=>setLocal(e.target.value)} onBlur={()=>onSave(local)}/>;
+  return (
+    <div>
+      <textarea value={local} rows={rows} placeholder="" style={style} onChange={e=>setLocal(e.target.value)} onBlur={()=>onSave(local)}/>
+      {hint&&<div style={hintSt}>{hint}</div>}
+    </div>
+  );
 }
 
 /* PAIN SCALE */
@@ -640,6 +653,79 @@ function evacColor(evac) {
   if (e.includes("urgent")) return "#c45000";
   if (e.includes("monitor")) return "#b8860b";
   return "#2a6e22";
+}
+
+
+/* CHECKBOX FIELD GATES
+   Maps stepId → { checkIdx: fieldKey | null }
+   null means the checkbox is standalone (always freely checkable).
+   A string fieldKey means: only allow checking if that field has content.
+   Select fields gate on value !== "" && value !== "—".
+*/
+const CHECKBOX_GATES = {
+  scene: {
+    0: null,           // Scene safe — standalone
+    1: "moi",          // MOI/NOI → moi field
+    2: "numPatients",  // # patients → numPatients field
+    3: null,           // PPE — standalone
+    4: null,           // Additional resources — standalone
+  },
+  initial: {
+    0: null,           // General impression — standalone
+    1: "lor",          // LOR → lor select
+    2: "airway",       // Airway → airway select
+    3: "breathing",    // Breathing → breathing select
+    4: "bleeding",     // Severe bleeding → bleeding select
+    5: null,           // Circulation — standalone
+    6: "spine",        // Spine → spine select
+  },
+  headtoe: {
+    0: "head",         // Head/skull → head field
+    1: null,           // Eyes — standalone (no separate field)
+    2: null,           // Ears/nose — standalone
+    3: "neck",         // Neck → neck field
+    4: "chest",        // Chest → chest field
+    5: "abdomen",      // Abdomen → abdomen field
+    6: null,           // Pelvis — standalone
+    7: "extremities",  // Extremities → extremities field
+    8: "posterior",    // Posterior → posterior field
+  },
+  vitals: {},          // vitals checks are all standalone
+  history: {
+    0: "opqrst",       // OPQRST → opqrst field
+    1: "signs",        // Signs & Symptoms → signs field
+    2: "allergy",      // Allergies → allergy field
+    3: "meds",         // Medications → meds field
+    4: "history",      // Past history → history field
+    5: "last",         // Last intake → last field
+    6: "events",       // Events → events field
+  },
+  problems: {
+    0: "problems",     // Problem list → problems field
+    1: null,           // Spine ruled — standalone (select)
+    2: null,           // Shock ruled — standalone (select)
+    3: null,           // Treatment priorities — standalone
+    4: null,           // Evac urgency — standalone
+  },
+  pfa: {},             // PFA checks all standalone
+  interventions: {},   // interventions checks all standalone
+  monitor: {
+    0: null,           // Vital signs trending — standalone
+    1: "anticipated",  // Anticipated problems → anticipated field
+    2: "evacPlan",     // Evac route → evacPlan field
+    3: "comms",        // Communications → comms field
+    4: null,           // Reassessment interval — standalone
+  },
+};
+
+/* Returns true if a gated checkbox should be disabled */
+function isCheckboxDisabled(stepId, idx, fields) {
+  const gates = CHECKBOX_GATES[stepId] || {};
+  const fieldKey = gates[idx];
+  if (fieldKey === undefined || fieldKey === null) return false; // standalone
+  const val = (fields[stepId] || {})[fieldKey] || "";
+  // Select fields: disabled if value is "" or "—"
+  return !val.trim() || val === "—";
 }
 
 /* MAIN COMPONENT */
@@ -1520,16 +1606,22 @@ export default function WFRField(){
                   <div style={{fontSize:"11px",fontWeight:700,color:"#4a5c4b",letterSpacing:"0.08em",marginBottom:"6px"}}>CHECKLIST</div>
                   {currentStep.checks.map((item,idx)=>{
                     const checked=!!((log.checks[currentStep.id]||{})[idx]);
+                    const disabled=isCheckboxDisabled(currentStep.id,idx,log.fields);
                     return (
-                      <label key={idx} style={{display:"flex",alignItems:"flex-start",gap:"10px",marginBottom:"8px",cursor:"pointer"}}>
-                        <div onClick={()=>setCheck(log.id,currentStep.id,idx,!checked)}
+                      <label key={idx} style={{display:"flex",alignItems:"flex-start",gap:"10px",marginBottom:"8px",cursor:disabled?"default":"pointer"}}>
+                        <div onClick={()=>!disabled&&setCheck(log.id,currentStep.id,idx,!checked)}
                           style={{width:"20px",height:"20px",minWidth:"20px",borderRadius:"4px",marginTop:"1px",
-                            background:checked?currentStep.color:"#edf0ea",
-                            border:"2px solid "+(checked?currentStep.color:"#cdd4c7"),
-                            display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                            background:checked?currentStep.color:disabled?"#f0f0ee":"#edf0ea",
+                            border:"2px solid "+(checked?currentStep.color:disabled?"#d0d4cc":"#cdd4c7"),
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            cursor:disabled?"not-allowed":"pointer",
+                            opacity:disabled?0.55:1}}>
                           {checked&&<span style={{color:"#ffffff",fontSize:"13px",lineHeight:1}}>✓</span>}
                         </div>
-                        <span style={{fontSize:"13px",color:checked?"#8a9c8b":"#1c2d1e",textDecoration:checked?"line-through":"none",lineHeight:"1.4"}}>{item}</span>
+                        <span style={{fontSize:"13px",color:checked?"#8a9c8b":disabled?"#b0bcb1":"#1c2d1e",textDecoration:checked?"line-through":"none",lineHeight:"1.4"}}>
+                          {item}
+                          {disabled&&!checked&&<span style={{fontSize:"9px",color:"#aaa",marginLeft:"5px"}}>— fill field first</span>}
+                        </span>
                       </label>
                     );
                   })}
@@ -1553,12 +1645,12 @@ export default function WFRField(){
                     );
                     if(f.type==="textarea") return(
                       <div key={f.key} style={{marginBottom:"8px"}}>{labelEl}
-                        <LogTextarea value={val} onSave={v=>setField(log.id,currentStep.id,f.key,v)} placeholder={f.placeholder} rows={3} style={{...inputSt,resize:"vertical",minHeight:"64px"}}/>
+                        <LogTextarea value={val} onSave={v=>setField(log.id,currentStep.id,f.key,v)} hint={f.hint} rows={3} style={{...inputSt,resize:"vertical",minHeight:"64px"}}/>
                       </div>
                     );
                     return(
                       <div key={f.key} style={{marginBottom:"8px"}}>{labelEl}
-                        <LogInput type={f.type||"text"} value={val} onSave={v=>setField(log.id,currentStep.id,f.key,v)} placeholder={f.placeholder} style={inputSt}/>
+                        <LogInput type={f.type||"text"} value={val} onSave={v=>setField(log.id,currentStep.id,f.key,v)} hint={f.hint} style={inputSt}/>
                       </div>
                     );
                   })}
@@ -1605,13 +1697,15 @@ export default function WFRField(){
               <div style={{fontSize:"12px",fontWeight:700,color:"#4a5c4b",marginBottom:"10px",letterSpacing:"0.06em"}}>NEW VITAL SET</div>
               <div style={{marginBottom:"8px"}}>
                 <label style={{fontSize:"11px",color:"#4a5c4b",display:"block",marginBottom:"3px"}}>Time</label>
-                <input value={vitalDraft.time||""} onChange={e=>setVitalDraft(v=>({...v,time:e.target.value}))} placeholder={nowTime()} style={{...inputSt,fontSize:"12px"}}/>
+                <input value={vitalDraft.time||""} onChange={e=>setVitalDraft(v=>({...v,time:e.target.value}))} placeholder="" style={{...inputSt,fontSize:"12px"}}/>
+                <div style={hintSt}>e.g. 07:35 AM</div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px",marginBottom:"10px"}}>
                 {VITAL_FIELDS.map(vf=>(
                   <div key={vf.key}>
                     <label style={{fontSize:"11px",color:"#4a5c4b",display:"block",marginBottom:"2px"}}>{vf.label} — {vf.fullLabel}</label>
-                    <input value={vitalDraft[vf.key]||""} onChange={e=>setVitalDraft(v=>({...v,[vf.key]:e.target.value}))} placeholder={vf.placeholder} style={{...inputSt,fontSize:"12px"}}/>
+                    <input value={vitalDraft[vf.key]||""} onChange={e=>setVitalDraft(v=>({...v,[vf.key]:e.target.value}))} placeholder="" style={{...inputSt,fontSize:"12px"}}/>
+                    {vf.hint&&<div style={hintSt}>{vf.hint}</div>}
                   </div>
                 ))}
               </div>
