@@ -1008,6 +1008,191 @@ export default function WFRField(){
   const log=activeLog;
   const currentStep=STEPS[activeStep];
 
+  /* PHOTO MODAL */
+  const photoModal=photoModalOpen&&(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:1100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+      onClick={e=>{if(e.target===e.currentTarget){setPhotoModalOpen(false);}}}>
+      <div style={{background:"#1c2d1e",border:"1px solid #2a6e22",borderRadius:"14px 14px 0 0",padding:"20px 16px 36px",width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto"}}>
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}>
+          <div>
+            <div style={{fontSize:"14px",fontWeight:700,color:"#ffffff",letterSpacing:"0.06em"}}>📷 PHOTO ASSESSMENT</div>
+            <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"2px"}}>Gemini Vision — WFR Protocol Analysis</div>
+          </div>
+          <button onClick={()=>setPhotoModalOpen(false)}
+            style={{background:"none",border:"none",color:"#8a9c8b",fontSize:"22px",cursor:"pointer",lineHeight:1}}>×</button>
+        </div>
+
+        {/* Photo input */}
+        <div style={{marginBottom:"12px"}}>
+          <label style={{fontSize:"11px",color:"#8a9c8b",display:"block",marginBottom:"6px",letterSpacing:"0.06em"}}>PHOTO / CAMERA</label>
+          <label style={{display:"block",cursor:"pointer"}}>
+            <div style={{background:"#0d1f10",border:"2px dashed #2a6e22",borderRadius:"8px",padding:"16px",textAlign:"center",color:"#4caf50",fontSize:"12px",fontFamily:mono}}>
+              {photoPreview?"📷 Photo selected — tap to change":"📷 Tap to take photo or select from library"}
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoSelect}
+              style={{display:"none"}}
+            />
+          </label>
+        </div>
+
+        {/* Preview */}
+        {photoPreview&&(
+          <div style={{marginBottom:"12px",textAlign:"center"}}>
+            <img src={photoPreview} alt="Selected photo"
+              style={{maxHeight:"200px",maxWidth:"100%",borderRadius:"8px",border:"1px solid #2a6e22",objectFit:"contain"}}/>
+          </div>
+        )}
+
+        {/* Notes */}
+        <div style={{marginBottom:"12px"}}>
+          <label style={{fontSize:"11px",color:"#8a9c8b",display:"block",marginBottom:"6px",letterSpacing:"0.06em"}}>CONTEXT (OPTIONAL)</label>
+          <textarea
+            value={photoNotes}
+            onChange={e=>setPhotoNotes(e.target.value)}
+            placeholder="Add context (location on body, duration, symptoms...)"
+            rows={3}
+            style={{...inputSt,background:"#0d1f10",color:"#e8f5e9",border:"1px solid #2a6e22",resize:"vertical",fontSize:"12px",lineHeight:"1.5"}}
+          />
+        </div>
+
+        {/* Assess button */}
+        <button
+          onClick={handlePhotoAssess}
+          disabled={!photoBase64||photoLoading}
+          style={{...btnPrimary,width:"100%",padding:"12px",fontSize:"13px",marginBottom:"12px",
+            opacity:(!photoBase64||photoLoading)?0.5:1,
+            background:photoLoading?"#4a5c4b":"#2a6e22"}}>
+          {photoLoading?"Analyzing with Gemini Vision…":"Assess Photo"}
+        </button>
+
+        {/* Error */}
+        {photoError&&(
+          <div style={{padding:"10px 12px",background:"#3d0000",border:"1px solid #b71c1c",borderRadius:"6px",marginBottom:"12px",fontSize:"12px",color:"#ef9a9a",fontFamily:mono}}>
+            {photoError}
+          </div>
+        )}
+
+        {/* Results */}
+        {photoResult&&(
+          <div style={{background:"#0d1f10",border:"1px solid #2a6e22",borderRadius:"10px",padding:"14px",marginBottom:"12px"}}>
+
+            {/* Anaphylaxis risk banner */}
+            {photoResult.anaphylaxisRisk==="High"&&(
+              <div style={{
+                background:"#b71c1c",border:"2px solid #ff1744",borderRadius:"8px",
+                padding:"12px 14px",marginBottom:"14px",
+              }}>
+                <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}`}</style>
+                <div style={{fontSize:"13px",fontWeight:700,color:"#ffffff",letterSpacing:"0.04em",animation:"pulse 1.5s ease-in-out infinite"}}>
+                  ⚠️ HIGH ANAPHYLAXIS RISK
+                </div>
+                <div style={{fontSize:"11px",color:"rgba(255,255,255,0.9)",marginTop:"4px"}}>
+                  Check for Epi-Pen. Prepare for emergency evacuation.
+                </div>
+              </div>
+            )}
+
+            {/* Suspected condition */}
+            <div style={{marginBottom:"12px"}}>
+              <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"4px"}}>SUSPECTED</div>
+              <div style={{fontSize:"15px",fontWeight:700,color:"#ffffff",lineHeight:"1.3"}}>{photoResult.suspected}</div>
+            </div>
+
+            {/* Badges */}
+            <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"12px"}}>
+              <span style={{background:"#1a3a1c",border:"1px solid #2a6e22",borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,color:"#a5d6a7"}}>
+                Confidence: {photoResult.confidence}
+              </span>
+              <span style={{
+                background:"rgba(0,0,0,0.3)",
+                border:"1px solid "+severityColor(photoResult.severity),
+                borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,
+                color:severityColor(photoResult.severity),fontWeight:700,
+              }}>
+                {photoResult.severity}
+              </span>
+              {photoResult.anaphylaxisRisk&&photoResult.anaphylaxisRisk!=="Low"&&(
+                <span style={{background:"rgba(183,28,28,0.3)",border:"1px solid #b71c1c",borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,color:"#ef9a9a"}}>
+                  Anaphylaxis: {photoResult.anaphylaxisRisk}
+                </span>
+              )}
+            </div>
+
+            {/* Findings */}
+            {photoResult.findings&&(
+              <div style={{marginBottom:"12px"}}>
+                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"4px"}}>FINDINGS</div>
+                <div style={{fontSize:"12px",color:"#e8f5e9",lineHeight:"1.6"}}>{photoResult.findings}</div>
+              </div>
+            )}
+
+            {/* Treatment */}
+            {photoResult.treatment&&photoResult.treatment.length>0&&(
+              <div style={{marginBottom:"12px"}}>
+                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"6px"}}>TREATMENT</div>
+                {photoResult.treatment.map((t,i)=>(
+                  <div key={i} style={{fontSize:"12px",color:"#e8f5e9",marginBottom:"4px",display:"flex",gap:"8px"}}>
+                    <span style={{color:"#4caf50",flexShrink:0,fontWeight:700}}>{i+1}.</span>
+                    <span>{t}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Watch for */}
+            {photoResult.watchFor&&photoResult.watchFor.length>0&&(
+              <div style={{marginBottom:"12px"}}>
+                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"6px"}}>WATCH FOR</div>
+                {photoResult.watchFor.map((w,i)=>(
+                  <div key={i} style={{fontSize:"12px",color:"#ffe082",marginBottom:"4px",paddingLeft:"8px"}}>• {w}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Evacuation */}
+            {photoResult.evacuation&&(
+              <div style={{marginBottom:"12px",padding:"10px 12px",borderRadius:"8px",
+                background:"rgba(0,0,0,0.3)",
+                border:"1px solid "+evacColor(photoResult.evacuation)}}>
+                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"4px"}}>EVACUATION</div>
+                <div style={{fontSize:"13px",fontWeight:700,color:evacColor(photoResult.evacuation)}}>{photoResult.evacuation}</div>
+                {photoResult.evacuationReason&&(
+                  <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"4px"}}>{photoResult.evacuationReason}</div>
+                )}
+              </div>
+            )}
+
+            {/* Disclaimer */}
+            {photoResult.disclaimer&&(
+              <div style={{fontSize:"10px",color:"#4a5c4b",borderTop:"1px solid #1a3a1c",paddingTop:"10px",marginBottom:"12px",lineHeight:"1.5"}}>
+                {photoResult.disclaimer}
+              </div>
+            )}
+
+            {/* Attach to log */}
+            {activeLog&&(
+              <button onClick={handleAttachToLog}
+                style={{...btnPrimary,width:"100%",padding:"11px",fontSize:"12px"}}>
+                Attach to Patient Log
+              </button>
+            )}
+          </div>
+        )}
+
+        <div style={{fontSize:"10px",color:"#4a5c4b",textAlign:"center",marginTop:"8px",lineHeight:"1.4"}}>
+          AI vision analysis — always apply WFR training and clinical judgment.
+        </div>
+      </div>
+    </div>
+  );
+
+
   /* HOME */
   if(screen==="home") return (
     <div style={{fontFamily:mono,background:"#f3f5f2",minHeight:"100vh",padding:"16px"}}>
@@ -1216,189 +1401,6 @@ export default function WFRField(){
   const isEmergencyEvac=evacFromAI==="Emergency — call now";
   const isUrgentEvac=evacFromAI==="Urgent — within hours";
 
-  /* PHOTO MODAL */
-  const photoModal=photoModalOpen&&(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:1100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}
-      onClick={e=>{if(e.target===e.currentTarget){setPhotoModalOpen(false);}}}>
-      <div style={{background:"#1c2d1e",border:"1px solid #2a6e22",borderRadius:"14px 14px 0 0",padding:"20px 16px 36px",width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto"}}>
-
-        {/* Header */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}>
-          <div>
-            <div style={{fontSize:"14px",fontWeight:700,color:"#ffffff",letterSpacing:"0.06em"}}>📷 PHOTO ASSESSMENT</div>
-            <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"2px"}}>Gemini Vision — WFR Protocol Analysis</div>
-          </div>
-          <button onClick={()=>setPhotoModalOpen(false)}
-            style={{background:"none",border:"none",color:"#8a9c8b",fontSize:"22px",cursor:"pointer",lineHeight:1}}>×</button>
-        </div>
-
-        {/* Photo input */}
-        <div style={{marginBottom:"12px"}}>
-          <label style={{fontSize:"11px",color:"#8a9c8b",display:"block",marginBottom:"6px",letterSpacing:"0.06em"}}>PHOTO / CAMERA</label>
-          <label style={{display:"block",cursor:"pointer"}}>
-            <div style={{background:"#0d1f10",border:"2px dashed #2a6e22",borderRadius:"8px",padding:"16px",textAlign:"center",color:"#4caf50",fontSize:"12px",fontFamily:mono}}>
-              {photoPreview?"📷 Photo selected — tap to change":"📷 Tap to take photo or select from library"}
-            </div>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handlePhotoSelect}
-              style={{display:"none"}}
-            />
-          </label>
-        </div>
-
-        {/* Preview */}
-        {photoPreview&&(
-          <div style={{marginBottom:"12px",textAlign:"center"}}>
-            <img src={photoPreview} alt="Selected photo"
-              style={{maxHeight:"200px",maxWidth:"100%",borderRadius:"8px",border:"1px solid #2a6e22",objectFit:"contain"}}/>
-          </div>
-        )}
-
-        {/* Notes */}
-        <div style={{marginBottom:"12px"}}>
-          <label style={{fontSize:"11px",color:"#8a9c8b",display:"block",marginBottom:"6px",letterSpacing:"0.06em"}}>CONTEXT (OPTIONAL)</label>
-          <textarea
-            value={photoNotes}
-            onChange={e=>setPhotoNotes(e.target.value)}
-            placeholder="Add context (location on body, duration, symptoms...)"
-            rows={3}
-            style={{...inputSt,background:"#0d1f10",color:"#e8f5e9",border:"1px solid #2a6e22",resize:"vertical",fontSize:"12px",lineHeight:"1.5"}}
-          />
-        </div>
-
-        {/* Assess button */}
-        <button
-          onClick={handlePhotoAssess}
-          disabled={!photoBase64||photoLoading}
-          style={{...btnPrimary,width:"100%",padding:"12px",fontSize:"13px",marginBottom:"12px",
-            opacity:(!photoBase64||photoLoading)?0.5:1,
-            background:photoLoading?"#4a5c4b":"#2a6e22"}}>
-          {photoLoading?"Analyzing with Gemini Vision…":"Assess Photo"}
-        </button>
-
-        {/* Error */}
-        {photoError&&(
-          <div style={{padding:"10px 12px",background:"#3d0000",border:"1px solid #b71c1c",borderRadius:"6px",marginBottom:"12px",fontSize:"12px",color:"#ef9a9a",fontFamily:mono}}>
-            {photoError}
-          </div>
-        )}
-
-        {/* Results */}
-        {photoResult&&(
-          <div style={{background:"#0d1f10",border:"1px solid #2a6e22",borderRadius:"10px",padding:"14px",marginBottom:"12px"}}>
-
-            {/* Anaphylaxis risk banner */}
-            {photoResult.anaphylaxisRisk==="High"&&(
-              <div style={{
-                background:"#b71c1c",border:"2px solid #ff1744",borderRadius:"8px",
-                padding:"12px 14px",marginBottom:"14px",
-              }}>
-                <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}`}</style>
-                <div style={{fontSize:"13px",fontWeight:700,color:"#ffffff",letterSpacing:"0.04em",animation:"pulse 1.5s ease-in-out infinite"}}>
-                  ⚠️ HIGH ANAPHYLAXIS RISK
-                </div>
-                <div style={{fontSize:"11px",color:"rgba(255,255,255,0.9)",marginTop:"4px"}}>
-                  Check for Epi-Pen. Prepare for emergency evacuation.
-                </div>
-              </div>
-            )}
-
-            {/* Suspected condition */}
-            <div style={{marginBottom:"12px"}}>
-              <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"4px"}}>SUSPECTED</div>
-              <div style={{fontSize:"15px",fontWeight:700,color:"#ffffff",lineHeight:"1.3"}}>{photoResult.suspected}</div>
-            </div>
-
-            {/* Badges */}
-            <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"12px"}}>
-              <span style={{background:"#1a3a1c",border:"1px solid #2a6e22",borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,color:"#a5d6a7"}}>
-                Confidence: {photoResult.confidence}
-              </span>
-              <span style={{
-                background:"rgba(0,0,0,0.3)",
-                border:"1px solid "+severityColor(photoResult.severity),
-                borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,
-                color:severityColor(photoResult.severity),fontWeight:700,
-              }}>
-                {photoResult.severity}
-              </span>
-              {photoResult.anaphylaxisRisk&&photoResult.anaphylaxisRisk!=="Low"&&(
-                <span style={{background:"rgba(183,28,28,0.3)",border:"1px solid #b71c1c",borderRadius:"10px",padding:"3px 10px",fontSize:"11px",fontFamily:mono,color:"#ef9a9a"}}>
-                  Anaphylaxis: {photoResult.anaphylaxisRisk}
-                </span>
-              )}
-            </div>
-
-            {/* Findings */}
-            {photoResult.findings&&(
-              <div style={{marginBottom:"12px"}}>
-                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"4px"}}>FINDINGS</div>
-                <div style={{fontSize:"12px",color:"#e8f5e9",lineHeight:"1.6"}}>{photoResult.findings}</div>
-              </div>
-            )}
-
-            {/* Treatment */}
-            {photoResult.treatment&&photoResult.treatment.length>0&&(
-              <div style={{marginBottom:"12px"}}>
-                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"6px"}}>TREATMENT</div>
-                {photoResult.treatment.map((t,i)=>(
-                  <div key={i} style={{fontSize:"12px",color:"#e8f5e9",marginBottom:"4px",display:"flex",gap:"8px"}}>
-                    <span style={{color:"#4caf50",flexShrink:0,fontWeight:700}}>{i+1}.</span>
-                    <span>{t}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Watch for */}
-            {photoResult.watchFor&&photoResult.watchFor.length>0&&(
-              <div style={{marginBottom:"12px"}}>
-                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"6px"}}>WATCH FOR</div>
-                {photoResult.watchFor.map((w,i)=>(
-                  <div key={i} style={{fontSize:"12px",color:"#ffe082",marginBottom:"4px",paddingLeft:"8px"}}>• {w}</div>
-                ))}
-              </div>
-            )}
-
-            {/* Evacuation */}
-            {photoResult.evacuation&&(
-              <div style={{marginBottom:"12px",padding:"10px 12px",borderRadius:"8px",
-                background:"rgba(0,0,0,0.3)",
-                border:"1px solid "+evacColor(photoResult.evacuation)}}>
-                <div style={{fontSize:"11px",color:"#8a9c8b",letterSpacing:"0.08em",marginBottom:"4px"}}>EVACUATION</div>
-                <div style={{fontSize:"13px",fontWeight:700,color:evacColor(photoResult.evacuation)}}>{photoResult.evacuation}</div>
-                {photoResult.evacuationReason&&(
-                  <div style={{fontSize:"11px",color:"#8a9c8b",marginTop:"4px"}}>{photoResult.evacuationReason}</div>
-                )}
-              </div>
-            )}
-
-            {/* Disclaimer */}
-            {photoResult.disclaimer&&(
-              <div style={{fontSize:"10px",color:"#4a5c4b",borderTop:"1px solid #1a3a1c",paddingTop:"10px",marginBottom:"12px",lineHeight:"1.5"}}>
-                {photoResult.disclaimer}
-              </div>
-            )}
-
-            {/* Attach to log */}
-            {activeLog&&(
-              <button onClick={handleAttachToLog}
-                style={{...btnPrimary,width:"100%",padding:"11px",fontSize:"12px"}}>
-                Attach to Patient Log
-              </button>
-            )}
-          </div>
-        )}
-
-        <div style={{fontSize:"10px",color:"#4a5c4b",textAlign:"center",marginTop:"8px",lineHeight:"1.4"}}>
-          AI vision analysis — always apply WFR training and clinical judgment.
-        </div>
-      </div>
-    </div>
-  );
 
   /* AI MODAL */
   const aiModal=aiModalOpen&&(
