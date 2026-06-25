@@ -932,12 +932,25 @@ export default function WFRField(){
   const handlePhotoSelect=useCallback((e)=>{
     const file=e.target.files?.[0];
     if(!file)return;
-    setPhotoMime(file.type||"image/jpeg");
     const reader=new FileReader();
     reader.onload=(ev)=>{
-      const dataUrl=ev.target.result;
-      setPhotoPreview(dataUrl);
-      setPhotoBase64(dataUrl.split(",")[1]);
+      const img=new Image();
+      img.onload=()=>{
+        const MAX=1200;
+        let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){
+          if(w>h){h=Math.round(h*MAX/w);w=MAX;}
+          else{w=Math.round(w*MAX/h);h=MAX;}
+        }
+        const canvas=document.createElement("canvas");
+        canvas.width=w;canvas.height=h;
+        canvas.getContext("2d").drawImage(img,0,0,w,h);
+        const compressed=canvas.toDataURL("image/jpeg",0.82);
+        setPhotoPreview(compressed);
+        setPhotoMime("image/jpeg");
+        setPhotoBase64(compressed.split(",")[1]);
+      };
+      img.src=ev.target.result;
     };
     reader.readAsDataURL(file);
   },[]);
